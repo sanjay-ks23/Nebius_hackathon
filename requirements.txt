@@ -84,3 +84,6 @@ wheel==0.48.0
 xxhash==4.0.1
 yarl==1.25.1
 zstandard==0.25.0
+
+# StopProof sandbox client (Nebius Token Factory Sandboxes)
+contree-client==0.4.0
