@@ -358,6 +358,7 @@ function renderControls(h) {
 
 async function refreshHealth() {
   $("recheck").textContent = "Checking...";
+  $("services").innerHTML = `<span class="svc"><i></i>checking services...</span>`;
   try {
     state.health = await api("/api/health");
     renderServices(state.health);
