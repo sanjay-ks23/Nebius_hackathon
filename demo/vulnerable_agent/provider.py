@@ -6,6 +6,7 @@ SMTP email (SMTP_HOST/PORT/USER/PASS env), anything else is POSTed (e.g. ntfy.sh
 """
 import os
 import smtplib
+import time
 import urllib.request
 from email.message import EmailMessage
 from pathlib import Path
@@ -31,6 +32,21 @@ def _smtp_send(to_addr, message, action_id):
         smtp.send_message(msg)
 
 
+def _post(url, message):
+    """POST with two retries — notification services are flaky, and a transient
+    flap must not corrupt the demonstration. A persistent failure still raises."""
+    last = None
+    for attempt in range(3):
+        try:
+            urllib.request.urlopen(urllib.request.Request(url, data=message.encode()), timeout=10).close()
+            return
+        except (urllib.error.URLError, OSError) as exc:
+            last = exc
+            if attempt < 2:
+                time.sleep(attempt + 1)
+    raise last
+
+
 def _deliver(urls, message, action_id):
     for url in urls.split(","):
         url = url.strip()
@@ -46,7 +62,7 @@ def _deliver(urls, message, action_id):
         elif target.scheme == "mailto":
             _smtp_send(target.path, message, action_id)
         else:
-            urllib.request.urlopen(urllib.request.Request(url, data=message.encode()), timeout=10).close()
+            _post(url, message)
 
 
 def send_email(to, body, action_id):

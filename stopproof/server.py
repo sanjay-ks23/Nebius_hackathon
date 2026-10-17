@@ -29,6 +29,7 @@ MAX_TRACE_BYTES = 1_000_000
 UI = Path(__file__).parent / "ui" / "index.html"
 DEMO_DIR = Path("demo")
 RUN_ID = re.compile(r"^[A-Za-z0-9_-]+$")
+EMAIL_ADDR = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 NTFY_TOPIC = re.compile(r"^[A-Za-z0-9_-]{4,64}$")
 NTFY_MESSAGES = "https://ntfy.sh/{topic}/json?poll=1"
 
@@ -126,6 +127,13 @@ def create_app(runs_dir: Path) -> Starlette:
     def live_work(job_id: str, targets: list[Path], sink: str, topic: str) -> None:
         job = jobs[job_id]
         try:
+            import urllib.request
+            try:
+                urllib.request.urlopen(urllib.request.Request(
+                    f"https://ntfy.sh/{topic}", data="StopProof live proof is starting — a broken agent's sends will arrive here after STOP".encode()
+                ), timeout=10).close()
+            except (urllib.error.URLError, OSError):
+                job["sink_note"] = "the push service is unreachable from this machine — verdicts below still come from the same code and verifier, but notifications cannot be delivered"
             for repo in targets:
                 job["stages"].append({"stage": "live", "status": "running", "repo": repo.name})
                 res = livedemo.run_live(repo, sink)
@@ -138,20 +146,26 @@ def create_app(runs_dir: Path) -> Starlette:
             job.update(status="error", error=f"{type(exc).__name__}: {exc}", code="internal")
 
     async def start_live(request: Request) -> JSONResponse:
-        """Live demo: the same races on the host with real outbound sinks (ntfy push, optional SMTP email), A/B: broken then fixed."""
+        """Live demo: the same races on the host with real outbound sinks (ntfy push, optional SMTP email).
+        Three agents: broken (acts anyway), fixed (provably stops), opaque (can't prove either way)."""
+        body = await request.json() if (await request.body()) else {}
+        email_to = str(body.get("email") or os.environ.get("STOPPROOF_EMAIL") or "").strip() or None
+        if email_to and not EMAIL_ADDR.match(email_to):
+            return JSONResponse({"error": "that doesn't look like an email address"}, status_code=400)
+        email_note = None
+        if email_to and not (os.environ.get("SMTP_USER") and os.environ.get("SMTP_PASS")):
+            email_note = "email delivery is not configured on this host — the push inbox still works"
+            email_to = None
         available = repos()
-        targets = [available[name] for name in ("vulnerable_agent", "fixed_agent") if name in available]
+        targets = [available[name] for name in ("vulnerable_agent", "fixed_agent", "opaque_agent") if name in available]
         if not targets:
             return JSONResponse({"error": "no live-capable demo repositories found"}, status_code=400)
         job_id = uuid.uuid4().hex[:8]
         topic = f"stopproof-{job_id}{uuid.uuid4().hex[:6]}"
-        sinks = [f"https://ntfy.sh/{topic}"]
-        email_to = os.environ.get("STOPPROOF_EMAIL")
-        if email_to:
-            sinks.append(f"mailto:{email_to}")
+        sinks = [f"https://ntfy.sh/{topic}"] + ([f"mailto:{email_to}"] if email_to else [])
         jobs[job_id] = {"status": "running", "stages": [{"stage": "live", "status": "running"}], "backend": "live-host", "topic": topic, "variants": [], "email_to": email_to}
         threading.Thread(target=live_work, args=(job_id, targets, ",".join(sinks), topic), daemon=True).start()
-        return JSONResponse({"job": job_id, "topic": topic, "subscribe": f"https://ntfy.sh/{topic}", "email_to": email_to})
+        return JSONResponse({"job": job_id, "topic": topic, "subscribe": f"https://ntfy.sh/{topic}", "email_to": email_to, "email_note": email_note})
 
     async def live_messages(request: Request) -> JSONResponse:
         """Server-side poll of an ntfy topic so the browser inbox works without CORS or setup."""

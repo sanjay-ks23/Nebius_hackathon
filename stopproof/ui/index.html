@@ -204,11 +204,12 @@
   <div class="main">
     <section id="live">
       <h2>See it happen for real</h2>
-      <p class="desc">Both agents' own tests pass. Watch what happens to real push notifications anyway: the broken agent keeps sending <em>after</em> stop, the fixed agent goes silent. The inbox below streams them live.</p>
+      <p class="desc">Three agents, all with green test suites. The broken one sends <em>after</em> stop, the fixed one goes silent, the third can't prove either way. Watch real push notifications arrive in the inbox below — or get them in your actual inbox.</p>
       <div class="row">
         <button class="primary" id="live-run" style="width:auto;margin-top:0">Run live proof</button>
-        <span class="note" id="live-topic"></span>
+        <input id="live-email" type="email" placeholder="your@email.com — optional" style="width:auto;min-width:230px;margin-top:0">
       </div>
+      <div class="note" id="live-topic"></div>
       <div class="live-cards" id="live-results"></div>
       <div class="box hidden" id="live-inbox-box"><table><tbody id="live-inbox"></tbody></table></div>
     </section>
@@ -672,10 +673,13 @@ function renderLiveResults(j) {
     const late = (v.windows || []).filter((w) => w.verdict && w.verdict.outcome === "STILL ABLE TO ACT").length;
     const checks = v.self_checks || [], passed = checks.filter((c) => c.passed).length;
     const checksLine = checks.length
-      ? `<div class="muted" style="font-size:12.5px">repo's own tests: <b class="ok-text">${passed}/${checks.length} pass</b> — yet ${late ? `${late} real notifications still escaped` : "none escaped"}</div>` : "";
+      ? `<div class="muted" style="font-size:12.5px">repo's own tests: <b class="ok-text">${passed}/${checks.length} pass</b></div>` : "";
+    const line = v.outcome === "CANNOT ESTABLISH"
+      ? "sent no evidence — we cannot tell whether it stopped, and missing evidence is never safe"
+      : v.outcome ? `${late} of ${(v.windows || []).length} windows sent a real notification after STOP` : "running every race window...";
     return `<div class="live-card"><div class="mono muted">${esc(v.repo)}</div>
       <div class="o ${tone(v.outcome)}-text">${esc(v.outcome || "running...")}</div>
-      <div class="muted" style="font-size:12.5px">${v.outcome ? `${late} of ${(v.windows || []).length} windows sent a real notification after STOP` : "running every race window..."}</div>${checksLine}</div>`;
+      <div class="muted" style="font-size:12.5px">${line}</div>${checksLine}</div>`;
   }).join("");
 }
 
@@ -696,6 +700,9 @@ async function pollLive(jobId, topic) {
   let j;
   try { j = await api("/api/runs/" + jobId); } catch (err) { $("live-topic").textContent = err.message; return; }
   renderLiveResults(j);
+  if (j.sink_note && !$("live-sink-note")) {
+    $("live-topic").insertAdjacentHTML("afterend", `<div class="note warn-text" id="live-sink-note">${esc(j.sink_note)}</div>`);
+  }
   if (j.status === "running") return void (stateLive.poll = setTimeout(() => pollLive(jobId, topic), 1200));
   $("live-run").disabled = false;
   $("live-run").textContent = "Run live proof again";
@@ -708,13 +715,16 @@ async function startLive() {
   $("live-run").textContent = "Running live proof...";
   $("live-results").innerHTML = "";
   $("live-inbox").innerHTML = "";
+  const old = $("live-sink-note"); if (old) old.remove();
   let job;
-  try { job = await api("/api/live-demo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ repo: $("repo").value }) }); }
+  const email = $("live-email").value.trim();
+  try { job = await api("/api/live-demo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: email || null }) }); }
   catch (err) { $("live-topic").textContent = err.message; $("live-run").disabled = false; $("live-run").textContent = "Run live proof"; return; }
   if (job.error) { $("live-topic").textContent = job.error; $("live-run").disabled = false; $("live-run").textContent = "Run live proof"; return; }
   clearTimeout(stateLive.inboxPoll);
   $("live-topic").innerHTML = `notifications go to <a href="${esc(job.subscribe)}" target="_blank" rel="noopener">${esc(job.subscribe)}</a> — open it on a phone, or watch the inbox below`
-    + (job.email_to ? ` — <b>and real emails to ${esc(job.email_to)}</b> (check your inbox)` : "");
+    + (job.email_to ? ` — <b>and real emails to ${esc(job.email_to)}</b> (check your inbox)` : "")
+    + (job.email_note ? ` — <span class="warn-text">${esc(job.email_note)}</span>` : "");
   pollInbox(job.topic, false);
   pollLive(job.job, job.topic);
 }
