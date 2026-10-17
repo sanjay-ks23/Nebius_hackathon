@@ -133,7 +133,7 @@ def create_app(runs_dir: Path) -> Starlette:
                     f"https://ntfy.sh/{topic}", data="StopProof live proof is starting — a broken agent's sends will arrive here after STOP".encode()
                 ), timeout=10).close()
             except (urllib.error.URLError, OSError):
-                job["sink_note"] = "the push service is unreachable from this machine — verdicts below still come from the same code and verifier, but notifications cannot be delivered"
+                job["sink_note"] = "the push service is unreachable from this machine — sends still land in the local inbox below, and verdicts come from the same code and verifier"
             for repo in targets:
                 job["stages"].append({"stage": "live", "status": "running", "repo": repo.name})
                 res = livedemo.run_live(repo, sink)
@@ -165,8 +165,9 @@ def create_app(runs_dir: Path) -> Starlette:
             return JSONResponse({"error": "no live-capable demo repositories found"}, status_code=400)
         job_id = uuid.uuid4().hex[:8]
         topic = f"stopproof-{job_id}{uuid.uuid4().hex[:6]}"
-        sinks = [f"https://ntfy.sh/{topic}"] + ([f"mailto:{email_to}"] if email_to else [])
-        jobs[job_id] = {"status": "running", "stages": [{"stage": "live", "status": "running"}], "backend": "live-host", "topic": topic, "variants": [], "email_to": email_to}
+        sink_dir = (runs_dir / f"live-{job_id}").resolve()
+        sinks = [f"https://ntfy.sh/{topic}", f"file://{sink_dir}/"] + ([f"mailto:{email_to}"] if email_to else [])
+        jobs[job_id] = {"status": "running", "stages": [{"stage": "live", "status": "running"}], "backend": "live-host", "topic": topic, "variants": [], "email_to": email_to, "sink_dir": str(sink_dir)}
         threading.Thread(target=live_work, args=(job_id, targets, ",".join(sinks), topic), daemon=True).start()
         return JSONResponse({"job": job_id, "topic": topic, "subscribe": f"https://ntfy.sh/{topic}", "email_to": email_to, "email_note": email_note})
 
@@ -176,24 +177,42 @@ def create_app(runs_dir: Path) -> Starlette:
         if not NTFY_TOPIC.match(topic):
             return JSONResponse({"error": "invalid topic"}, status_code=400)
         import urllib.request
+        sink_dir = next((j.get("sink_dir") for j in jobs.values() if j.get("topic") == topic), None)
 
         def fetch() -> list[dict[str, Any]]:
-            req = urllib.request.Request(NTFY_MESSAGES.format(topic=topic), headers={"Accept": "application/json"})
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                messages = []
-                for line in resp.read().decode().splitlines():
-                    try:
-                        event = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    if event.get("event") == "message":
-                        messages.append({"time": event.get("time"), "message": event.get("message", ""), "title": event.get("title", "")})
-                return messages
+            messages = []
+            try:
+                req = urllib.request.Request(NTFY_MESSAGES.format(topic=topic), headers={"Accept": "application/json"})
+                with urllib.request.urlopen(req, timeout=6) as resp:
+                    for line in resp.read().decode().splitlines():
+                        try:
+                            event = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        if event.get("event") == "message":
+                            messages.append({"time": event.get("time"), "message": event.get("message", ""), "title": event.get("title", "")})
+            except OSError:
+                pass  # ntfy may be unreachable — the local file inbox below still works
+            if sink_dir:
+                d = Path(sink_dir)
+                if d.is_dir():
+                    for f in sorted(d.glob("*.txt")):
+                        try:
+                            messages.append({"time": f.stat().st_mtime, "message": f.read_text().strip(), "title": "local inbox"})
+                        except OSError:
+                            continue
+            seen, out = set(), []
+            for m in sorted(messages, key=lambda m: m.get("time") or 0):
+                if m["message"] in seen:
+                    continue
+                seen.add(m["message"])
+                out.append(m)
+            return out
 
         try:
             return JSONResponse({"messages": await run_in_threadpool(fetch)})
         except (OSError, ValueError) as exc:
-            return JSONResponse({"error": f"ntfy unreachable: {type(exc).__name__}"}, status_code=502)
+            return JSONResponse({"error": f"inbox unreadable: {type(exc).__name__}"}, status_code=502)
 
     async def escalate(request: Request) -> JSONResponse:
         """Hand an inconclusive run to a Tendem human expert. Opt-in per run; never changes the verdict."""

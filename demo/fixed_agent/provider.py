@@ -53,17 +53,21 @@ def _deliver(urls, message, action_id):
         url = url.strip()
         if not url:
             continue
-        target = urlparse(url)
-        if target.scheme == "file":
-            path = Path(target.path)
-            if url.endswith("/"):
-                path.mkdir(parents=True, exist_ok=True)
-                path = path / f"{action_id}-{os.environ.get('STOPPROOF_LIVE_LABEL', 'live')}.txt"
-            path.write_text(message)
-        elif target.scheme == "mailto":
-            _smtp_send(target.path, message, action_id)
-        else:
-            _post(url, message)
+        try:
+            target = urlparse(url)
+            if target.scheme == "file":
+                path = Path(target.path)
+                if url.endswith("/"):
+                    path.mkdir(parents=True, exist_ok=True)
+                    path = path / f"{action_id}-{os.environ.get('STOPPROOF_LIVE_LABEL', 'live')}.txt"
+                path.write_text(message)
+            elif target.scheme == "mailto":
+                _smtp_send(target.path, message, action_id)
+            else:
+                _post(url, message)
+        except (OSError, RuntimeError, smtplib.SMTPException) as exc:
+            # One dead sink must not starve the others — report and move on.
+            print(f"[live-sink] {url[:48]} delivery failed for {action_id}: {exc}", file=sys.stderr)
 
 
 def send_email(to, body, action_id):
