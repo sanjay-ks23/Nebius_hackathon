@@ -29,7 +29,6 @@ MAX_TRACE_BYTES = 1_000_000
 UI = Path(__file__).parent / "ui" / "index.html"
 DEMO_DIR = Path("demo")
 RUN_ID = re.compile(r"^[A-Za-z0-9_-]+$")
-EMAIL_ADDR = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 NTFY_TOPIC = re.compile(r"^[A-Za-z0-9_-]{4,64}$")
 NTFY_MESSAGES = "https://ntfy.sh/{topic}/json?poll=1"
 
@@ -38,7 +37,7 @@ def create_app(runs_dir: Path) -> Starlette:
     jobs: dict[str, dict[str, Any]] = {}
 
     def repos() -> dict[str, Path]:
-        return {p.name: p for p in sorted(DEMO_DIR.iterdir()) if p.is_dir()} if DEMO_DIR.is_dir() else {}
+        return {p.name: p for p in sorted(DEMO_DIR.iterdir()) if p.is_dir() and not p.name.startswith((".", "_"))} if DEMO_DIR.is_dir() else {}
 
     def stored() -> list[dict[str, Any]]:
         return benchmark.load_evidence(runs_dir) if runs_dir.is_dir() else []
@@ -83,6 +82,8 @@ def create_app(runs_dir: Path) -> Starlette:
         if backend not in BACKENDS:
             return JSONResponse({"error": f"unknown backend {backend!r}; choose one of {sorted(BACKENDS)}"}, status_code=400)
         job_id = uuid.uuid4().hex[:8]
+        while len(jobs) >= 256:
+            jobs.pop(next(iter(jobs)))
         jobs[job_id] = {"status": "running", "stages": [], "repo": repo.name, "backend": backend}
         threading.Thread(target=work, args=(job_id, repo, backend), daemon=True).start()
         return JSONResponse({"job": job_id})
@@ -146,16 +147,9 @@ def create_app(runs_dir: Path) -> Starlette:
             job.update(status="error", error=f"{type(exc).__name__}: {exc}", code="internal")
 
     async def start_live(request: Request) -> JSONResponse:
-        """Live demo: the same races on the host with real outbound sinks (ntfy push, optional SMTP email).
+        """Live demo: the same races on the host with real outbound sinks (ntfy push + local file inbox).
         Three agents: broken (acts anyway), fixed (provably stops), opaque (can't prove either way)."""
         body = await request.json() if (await request.body()) else {}
-        email_to = str(body.get("email") or os.environ.get("STOPPROOF_EMAIL") or "").strip() or None
-        if email_to and not EMAIL_ADDR.match(email_to):
-            return JSONResponse({"error": "that doesn't look like an email address"}, status_code=400)
-        email_note = None
-        if email_to and not (os.environ.get("SMTP_USER") and os.environ.get("SMTP_PASS")):
-            email_note = "email delivery is not configured on this host — the push inbox still works"
-            email_to = None
         available = repos()
         want = str(body.get("repo") or "").strip()
         if want and want not in available:
@@ -166,10 +160,12 @@ def create_app(runs_dir: Path) -> Starlette:
         job_id = uuid.uuid4().hex[:8]
         topic = f"stopproof-{job_id}{uuid.uuid4().hex[:6]}"
         sink_dir = (runs_dir / f"live-{job_id}").resolve()
-        sinks = [f"https://ntfy.sh/{topic}", f"file://{sink_dir}/"] + ([f"mailto:{email_to}"] if email_to else [])
-        jobs[job_id] = {"status": "running", "stages": [{"stage": "live", "status": "running"}], "backend": "live-host", "topic": topic, "variants": [], "email_to": email_to, "sink_dir": str(sink_dir)}
+        sinks = [f"https://ntfy.sh/{topic}", f"file://{sink_dir}/"]
+        while len(jobs) >= 256:
+            jobs.pop(next(iter(jobs)))
+        jobs[job_id] = {"status": "running", "stages": [{"stage": "live", "status": "running"}], "backend": "live-host", "topic": topic, "variants": [], "sink_dir": str(sink_dir)}
         threading.Thread(target=live_work, args=(job_id, targets, ",".join(sinks), topic), daemon=True).start()
-        return JSONResponse({"job": job_id, "topic": topic, "subscribe": f"https://ntfy.sh/{topic}", "email_to": email_to, "email_note": email_note})
+        return JSONResponse({"job": job_id, "topic": topic, "subscribe": f"https://ntfy.sh/{topic}"})
 
     async def live_messages(request: Request) -> JSONResponse:
         """Server-side poll of an ntfy topic so the browser inbox works without CORS or setup."""

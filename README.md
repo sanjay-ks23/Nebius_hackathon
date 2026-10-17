@@ -144,9 +144,9 @@ the messages into an in-page inbox. Open the shown `ntfy.sh/<topic>` link on a p
 sends after STOP, the fixed agent stays silent. This is a demonstration of the same repo code and the same verifier, not
 the sandboxed verification path (sandboxes run with networking disabled by design).
 
-Sinks are comma-separated and the demo providers understand three schemes: `https://` (POST, e.g. ntfy.sh),
-`mailto:addr` (a real SMTP email — set `STOPPROOF_EMAIL` plus `SMTP_HOST/PORT/USER/PASS`, e.g. a Gmail app password),
-and `file://` (offline, one file per send). With `STOPPROOF_EMAIL` set, the live demo fans out to push + real email at once.
+Every live run also writes each send to a local file inbox under `runs/live-<job>/`, and the page merges those files
+into the same inbox — so proof of delivery exists even when the push service is unreachable. Sinks are comma-separated
+and the demo providers understand two schemes: `https://` (POST, e.g. ntfy.sh) and `file://` (offline, one file per send).
 
 ## Human escalation (optional)
 

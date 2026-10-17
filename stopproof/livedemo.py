@@ -20,6 +20,7 @@ import sys
 import uuid
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from .runtime.races import TRACE_MARKER, WINDOWS, run_window
 from .verifier import Outcome, aggregate, verify
@@ -97,7 +98,8 @@ def run_live(repo: Path, sink_url: str, run_id: str | None = None) -> dict[str, 
         windows.append({"window": w.name, "description": w.description, "error": trace.get("error"),
                         "events": trace.get("events", []), "verdict": verify(trace).to_dict()})
     outcome = aggregate([Outcome(w["verdict"]["outcome"]) for w in windows])
-    return {"run_id": run_id, "repo": repo.name, "sink": sink_url, "mode": "live-host (not sandboxed; real side-effect delivery)",
+    sink_schemes = ", ".join(sorted({urlparse(u.strip()).scheme for u in sink_url.split(",") if u.strip()}))
+    return {"run_id": run_id, "repo": repo.name, "sink": sink_schemes, "mode": "live-host (not sandboxed; real side-effect delivery)",
             "outcome": outcome.value, "windows": windows}
 
 

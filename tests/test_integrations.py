@@ -142,42 +142,17 @@ def test_multi_sink_fans_out_to_every_target(monkeypatch, tmp_path):
     assert (b / "email-1-testwin.txt").read_text() == "msg"
 
 
-def test_mailto_sink_sends_real_smtp(monkeypatch):
+def test_a_dead_sink_does_not_starve_the_others(monkeypatch, tmp_path):
+    """A dead push endpoint must not abort the fan-out: the file sink still gets the send."""
     provider = _load_provider(monkeypatch)
-    sent = {}
+    monkeypatch.setenv("STOPPROOF_LIVE_LABEL", "testwin")
 
-    class FakeSMTP:
-        def __init__(self, host, port, timeout=None):
-            sent["conn"] = (host, port)
+    def boom(url, message):
+        raise OSError("push service unreachable")
 
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return False
-
-        def login(self, user, password):
-            sent["login"] = (user, password)
-
-        def send_message(self, msg):
-            sent["msg"] = msg
-
-    monkeypatch.setattr(provider.smtplib, "SMTP_SSL", FakeSMTP)
-    monkeypatch.setenv("SMTP_USER", "me@gmail.com")
-    monkeypatch.setenv("SMTP_PASS", "app-password")
-    provider._smtp_send("them@example.com", "EMAIL SENT id=email-1", "email-1")
-    assert sent["conn"] == ("smtp.gmail.com", 465)
-    assert sent["login"] == ("me@gmail.com", "app-password")
-    assert sent["msg"]["To"] == "them@example.com"
-    assert "EMAIL SENT" in sent["msg"]["Subject"]
-
-
-def test_mailto_sink_requires_credentials(monkeypatch):
-    provider = _load_provider(monkeypatch)
-    monkeypatch.delenv("SMTP_USER", raising=False)
-    monkeypatch.delenv("SMTP_PASS", raising=False)
-    with pytest.raises(RuntimeError):
-        provider._smtp_send("them@example.com", "x", "email-1")
+    monkeypatch.setattr(provider, "_post", boom)
+    provider._deliver(f"https://push.invalid/x,file://{tmp_path}/", "msg", "email-1")
+    assert (tmp_path / "email-1-testwin.txt").read_text() == "msg"
 
 
 def test_live_demo_vulnerable_delivers_after_stop(tmp_path):

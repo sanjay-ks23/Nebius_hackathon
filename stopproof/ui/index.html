@@ -185,8 +185,7 @@
   #live-inbox-box { margin-top: 14px; }
   #live-inbox td { font: 12.5px var(--mono); }
   #live-inbox .when { width: 90px; color: var(--faint); }
-  #live .row { gap: 10px; }
-  #live-email { max-width: 260px; }</style>
+  #live .row { gap: 10px; }</style>
 </head>
 <body class="simple">
 
@@ -244,12 +243,11 @@
   <div class="main">
     <section id="live">
       <h2>See it happen for real</h2>
-      <p class="desc">Same race test, real push notifications. The failing agent's own tests pass — yet it keeps sending <em>after</em> stop. The working agent goes silent, provably. Open the ntfy link on a phone, or add your email.</p>
+      <p class="desc">Same race test, real sends. The failing agent's own tests pass — yet it keeps sending <em>after</em> stop. The working agent goes silent, provably. Sends land in the inbox below (and on a phone via the ntfy link).</p>
       <div class="row">
         <button class="primary" id="live-run-fail" data-label="Run the failing agent" style="width:auto;margin-top:0">Run the failing agent</button>
         <button class="primary" id="live-run-ok" data-label="Run the working agent" style="width:auto;margin-top:0">Run the working agent</button>
         <button class="linkbtn" id="live-run-opaque" data-label="…or the inconclusive one (no telemetry)">…or the inconclusive one (no telemetry)</button>
-        <input id="live-email" type="email" placeholder="your@email.com — optional" style="width:auto;min-width:230px;margin-top:0">
       </div>
       <div class="note" id="live-topic"></div>
       <div class="live-cards" id="live-results"></div>
@@ -765,14 +763,11 @@ async function startLive(repo, btn) {
   $("live-inbox").innerHTML = "";
   const old = $("live-sink-note"); if (old) old.remove();
   let job;
-  const email = $("live-email").value.trim();
-  try { job = await api("/api/live-demo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: email || null, repo }) }); }
+  try { job = await api("/api/live-demo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ repo }) }); }
   catch (err) { $("live-topic").textContent = err.message; setLiveRunning(false, btn); return; }
   if (job.error) { $("live-topic").textContent = job.error; setLiveRunning(false, btn); return; }
   clearTimeout(stateLive.inboxPoll);
-  $("live-topic").innerHTML = `notifications go to <a href="${esc(job.subscribe)}" target="_blank" rel="noopener">${esc(job.subscribe)}</a> — open it on a phone, or watch the inbox below`
-    + (job.email_to ? ` — <b>and real emails to ${esc(job.email_to)}</b> (check your inbox)` : "")
-    + (job.email_note ? ` — <span class="warn-text">${esc(job.email_note)}</span>` : "");
+  $("live-topic").innerHTML = `notifications also go to <a href="${esc(job.subscribe)}" target="_blank" rel="noopener">${esc(job.subscribe)}</a> — open it on a phone, or watch the inbox below`;
   pollInbox(job.topic, false);
   pollLive(job.job, job.topic, btn);
 }
