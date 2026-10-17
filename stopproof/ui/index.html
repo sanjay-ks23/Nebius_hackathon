@@ -243,7 +243,7 @@
   <div class="main">
     <section id="live">
       <h2>See it happen for real</h2>
-      <p class="desc">Same race test, real sends. The failing agent's own tests pass — yet it keeps sending <em>after</em> stop. The working agent goes silent, provably. Sends land in the inbox below (and on a phone via the ntfy link).</p>
+      <p class="desc">Same race test, real outbound sends. The failing agent's own tests pass — yet it keeps sending <em>after</em> stop. The working agent goes silent, provably. Watch the inbox below — or open the live-inbox link on any phone.</p>
       <div class="row">
         <button class="primary" id="live-run-fail" data-label="Run the failing agent" style="width:auto;margin-top:0">Run the failing agent</button>
         <button class="primary" id="live-run-ok" data-label="Run the working agent" style="width:auto;margin-top:0">Run the working agent</button>
@@ -767,7 +767,7 @@ async function startLive(repo, btn) {
   catch (err) { $("live-topic").textContent = err.message; setLiveRunning(false, btn); return; }
   if (job.error) { $("live-topic").textContent = job.error; setLiveRunning(false, btn); return; }
   clearTimeout(stateLive.inboxPoll);
-  $("live-topic").innerHTML = `notifications also go to <a href="${esc(job.subscribe)}" target="_blank" rel="noopener">${esc(job.subscribe)}</a> — open it on a phone, or watch the inbox below`;
+  $("live-topic").innerHTML = `live inbox: <a href="${esc(job.subscribe)}" target="_blank" rel="noopener">${esc(job.subscribe)}</a> — open it on any phone and watch real sends arrive`;
   pollInbox(job.topic, false);
   pollLive(job.job, job.topic, btn);
 }

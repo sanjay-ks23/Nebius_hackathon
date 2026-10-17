@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -15,7 +16,7 @@ from dotenv import load_dotenv
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
-from starlette.responses import FileResponse, JSONResponse
+from starlette.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from starlette.routing import Route
 
 from . import benchmark, escalation, livedemo
@@ -30,11 +31,49 @@ UI = Path(__file__).parent / "ui" / "index.html"
 DEMO_DIR = Path("demo")
 RUN_ID = re.compile(r"^[A-Za-z0-9_-]+$")
 NTFY_TOPIC = re.compile(r"^[A-Za-z0-9_-]{4,64}$")
-NTFY_MESSAGES = "https://ntfy.sh/{topic}/json?poll=1"
+MAX_DELIVER_BYTES = 4_000
+MAX_INBOX = 100
+MAX_JOBS = 256
+INBOX_TTL = int(os.environ.get("STOPPROOF_INBOX_TTL", str(2 * 3600)))  # live inboxes expire after this many seconds
+DELIVER_RATE = (int(os.environ.get("STOPPROOF_DELIVER_RATE", "120")), 60)  # max deliveries per IP per window
+RUN_RATE = (int(os.environ.get("STOPPROOF_RUN_RATE", "6")), 60)  # max runs per IP per window (seconds)
+LIVE_RATE = (int(os.environ.get("STOPPROOF_LIVE_RATE", "6")), 60)  # max live demos per IP per window
+MAX_RUNNING = int(os.environ.get("STOPPROOF_MAX_RUNNING", "4"))  # global cap on in-flight jobs
 
 
 def create_app(runs_dir: Path) -> Starlette:
     jobs: dict[str, dict[str, Any]] = {}
+    inboxes: dict[str, list[dict[str, Any]]] = {}
+    buckets: dict[str, list[float]] = {}
+    lock = threading.Lock()
+
+    def client_ip(request: Request) -> str:
+        fwd = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        return fwd or (request.client.host if request.client else "unknown")
+
+    def rate_limited(request: Request, limit: int, window: int) -> bool:
+        now = time.time()
+        with lock:
+            hits = [t for t in buckets.get(client_ip(request), []) if now - t < window]
+            if len(hits) >= limit:
+                return True
+            hits.append(now)
+            buckets[client_ip(request)] = hits
+            return False
+
+    def busy() -> bool:
+        return sum(1 for j in jobs.values() if j.get("status") == "running") >= MAX_RUNNING
+
+    def new_job(job_id: str, record: dict[str, Any]) -> None:
+        while len(jobs) >= MAX_JOBS:
+            victim = next((k for k, v in jobs.items() if v.get("status") != "running"), None)
+            jobs.pop(victim if victim else next(iter(jobs)))
+        jobs[job_id] = record
+
+    def public_base(request: Request) -> str:
+        proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+        host = request.headers.get("x-forwarded-host", request.url.netloc)
+        return f"{proto}://{host}"
 
     def repos() -> dict[str, Path]:
         return {p.name: p for p in sorted(DEMO_DIR.iterdir()) if p.is_dir() and not p.name.startswith((".", "_"))} if DEMO_DIR.is_dir() else {}
@@ -81,10 +120,12 @@ def create_app(runs_dir: Path) -> Starlette:
             return JSONResponse({"error": f"unknown repository {body.get('repo')!r}"}, status_code=400)
         if backend not in BACKENDS:
             return JSONResponse({"error": f"unknown backend {backend!r}; choose one of {sorted(BACKENDS)}"}, status_code=400)
+        if rate_limited(request, *RUN_RATE):
+            return JSONResponse({"error": "rate limit — too many runs from this address; try again shortly"}, status_code=429)
+        if busy():
+            return JSONResponse({"error": "server is at capacity — a run is already in progress; try again shortly"}, status_code=429)
         job_id = uuid.uuid4().hex[:8]
-        while len(jobs) >= 256:
-            jobs.pop(next(iter(jobs)))
-        jobs[job_id] = {"status": "running", "stages": [], "repo": repo.name, "backend": backend}
+        new_job(job_id, {"status": "running", "stages": [], "repo": repo.name, "backend": backend})
         threading.Thread(target=work, args=(job_id, repo, backend), daemon=True).start()
         return JSONResponse({"job": job_id})
 
@@ -92,7 +133,7 @@ def create_app(runs_dir: Path) -> Starlette:
         state = jobs.get(request.path_params["job_id"])
         if state is None:
             return JSONResponse({"error": "unknown job"}, status_code=404)
-        return JSONResponse(state)
+        return JSONResponse({k: v for k, v in state.items() if not k.startswith("_")})
 
     async def evidence_list(_: Request) -> JSONResponse:
         rows = [{"run_id": e["run_id"], "repo": e.get("repository", {}).get("path"), "outcome": e["verdict"]["outcome"], "patched": bool(e.get("patch", {}).get("applied")),
@@ -128,13 +169,10 @@ def create_app(runs_dir: Path) -> Starlette:
     def live_work(job_id: str, targets: list[Path], sink: str, topic: str) -> None:
         job = jobs[job_id]
         try:
-            import urllib.request
-            try:
-                urllib.request.urlopen(urllib.request.Request(
-                    f"https://ntfy.sh/{topic}", data="StopProof live proof is starting — a broken agent's sends will arrive here after STOP".encode()
-                ), timeout=10).close()
-            except (urllib.error.URLError, OSError):
-                job["sink_note"] = "the push service is unreachable from this machine — sends still land in the local inbox below, and verdicts come from the same code and verifier"
+            inboxes[topic]["msgs"].append({
+                "time": time.time(), "title": "StopProof",
+                "message": "live proof starting — sends the agent performs will appear here",
+            })
             for repo in targets:
                 job["stages"].append({"stage": "live", "status": "running", "repo": repo.name})
                 res = livedemo.run_live(repo, sink)
@@ -147,8 +185,13 @@ def create_app(runs_dir: Path) -> Starlette:
             job.update(status="error", error=f"{type(exc).__name__}: {exc}", code="internal")
 
     async def start_live(request: Request) -> JSONResponse:
-        """Live demo: the same races on the host with real outbound sinks (ntfy push + local file inbox).
+        """Live demo: the same races on the host with real outbound sinks — this app's own
+        deliver endpoint plus a local file inbox (ntfy fan-out only if STOPPROOF_NTFY=1).
         Three agents: broken (acts anyway), fixed (provably stops), opaque (can't prove either way)."""
+        if rate_limited(request, *LIVE_RATE):
+            return JSONResponse({"error": "rate limit — too many live runs from this address; try again shortly"}, status_code=429)
+        if busy():
+            return JSONResponse({"error": "server is at capacity — a run is already in progress; try again shortly"}, status_code=429)
         body = await request.json() if (await request.body()) else {}
         available = repos()
         want = str(body.get("repo") or "").strip()
@@ -160,55 +203,94 @@ def create_app(runs_dir: Path) -> Starlette:
         job_id = uuid.uuid4().hex[:8]
         topic = f"stopproof-{job_id}{uuid.uuid4().hex[:6]}"
         sink_dir = (runs_dir / f"live-{job_id}").resolve()
-        sinks = [f"https://ntfy.sh/{topic}", f"file://{sink_dir}/"]
-        while len(jobs) >= 256:
-            jobs.pop(next(iter(jobs)))
-        jobs[job_id] = {"status": "running", "stages": [{"stage": "live", "status": "running"}], "backend": "live-host", "topic": topic, "variants": [], "sink_dir": str(sink_dir)}
+        sinks = [f"{public_base(request)}/api/live/{topic}/deliver", f"file://{sink_dir}/"]
+        if os.environ.get("STOPPROOF_NTFY"):
+            sinks.append(f"https://ntfy.sh/{topic}")
+        while len(inboxes) >= MAX_JOBS:
+            live = {j.get("topic") for j in jobs.values() if j.get("status") == "running"}
+            victim = next((k for k in inboxes if k not in live), None)
+            if victim is None:
+                break
+            inboxes.pop(victim)
+        inboxes[topic] = {"created": time.time(), "msgs": []}
+        new_job(job_id, {"status": "running", "stages": [{"stage": "live", "status": "running"}], "backend": "live-host", "topic": topic, "variants": [], "_sink_dir": str(sink_dir)})
         threading.Thread(target=live_work, args=(job_id, targets, ",".join(sinks), topic), daemon=True).start()
-        return JSONResponse({"job": job_id, "topic": topic, "subscribe": f"https://ntfy.sh/{topic}"})
+        return JSONResponse({"job": job_id, "topic": topic, "subscribe": f"/live/{topic}"})
+
+    def inbox(topic: str) -> dict[str, Any] | JSONResponse:
+        """Resolve a live inbox, enforcing the topic syntax, existence, and TTL."""
+        if not NTFY_TOPIC.match(topic):
+            return JSONResponse({"error": "invalid topic"}, status_code=400)
+        box = inboxes.get(topic)
+        if box is None:
+            return JSONResponse({"error": "unknown topic"}, status_code=404)
+        if time.time() - box["created"] > INBOX_TTL:
+            inboxes.pop(topic, None)
+            return JSONResponse({"error": "this live inbox has expired — run the live proof again for a fresh link"}, status_code=410)
+        return box
+
+    async def live_deliver(request: Request) -> JSONResponse:
+        """The real outbound sink for live runs: the repo's provider POSTs each send here.
+        Only accepts topics this app created (unguessable ids), size-, count-, and rate-capped."""
+        if rate_limited(request, *DELIVER_RATE):
+            return JSONResponse({"error": "rate limit"}, status_code=429)
+        box = inbox(request.path_params["topic"])
+        if isinstance(box, JSONResponse):
+            return box
+        raw = await request.body()
+        if len(raw) > MAX_DELIVER_BYTES:
+            return JSONResponse({"error": "message too large"}, status_code=413)
+        if len(box["msgs"]) >= MAX_INBOX:
+            return JSONResponse({"error": "inbox is full"}, status_code=429)
+        box["msgs"].append({"time": time.time(), "message": raw.decode(errors="replace").strip()[:2000], "title": "delivered"})
+        return JSONResponse({"ok": True})
 
     async def live_messages(request: Request) -> JSONResponse:
-        """Server-side poll of an ntfy topic so the browser inbox works without CORS or setup."""
+        """The inbox for a live topic: own deliveries merged with the local file sink."""
+        box = inbox(request.path_params["topic"])
+        if isinstance(box, JSONResponse):
+            return box
+        topic = request.path_params["topic"]
+        sink_dir = next((j.get("_sink_dir") for j in jobs.values() if j.get("topic") == topic), None)
+        messages = list(box["msgs"])
+        if sink_dir:
+            d = Path(sink_dir)
+            if d.is_dir():
+                for f in sorted(d.glob("*.txt")):
+                    try:
+                        messages.append({"time": f.stat().st_mtime, "message": f.read_text().strip(), "title": "local inbox"})
+                    except OSError:
+                        continue
+        seen, out = set(), []
+        for m in sorted(messages, key=lambda m: m.get("time") or 0):
+            if m["message"] in seen:
+                continue
+            seen.add(m["message"])
+            out.append(m)
+        return JSONResponse({"messages": out})
+
+    LIVE_PAGE = """<!doctype html><meta name=viewport content="width=device-width,initial-scale=1"><title>StopProof live inbox</title>
+<style>body{margin:0;background:#0e1014;color:#e8eaef;font:15px/1.6 system-ui,sans-serif;padding:22px}
+h1{font-size:17px}.m{border-bottom:1px solid #252a33;padding:10px 0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+.t{color:#687080;font-size:11.5px;margin-right:10px}</style>
+<h1>StopProof live inbox</h1><p style="color:#9aa2b1">Every send the agent performs lands here in real time.</p>
+<div id=inbox><div class=m style=color:#687080>waiting for sends…</div></div>
+<script>
+const t = location.pathname.split("/").pop(), box = document.getElementById("inbox");
+async function poll(){ try{ const r = await fetch("/api/live/"+encodeURIComponent(t)+"/messages"); const d = await r.json();
+  if(d.messages && d.messages.length){ box.innerHTML=""; for(const m of d.messages){
+    const row=document.createElement("div"); row.className="m";
+    const ts=document.createElement("span"); ts.className="t"; ts.textContent=new Date(m.time*1000).toLocaleTimeString();
+    row.appendChild(ts); row.appendChild(document.createTextNode(m.message)); box.appendChild(row);} } }catch(e){}
+  setTimeout(poll,1500);} poll();
+</script>"""
+
+    async def live_page(request: Request) -> Response:
+        """Public phone-friendly inbox: open /live/<topic> anywhere and watch sends arrive."""
         topic = request.path_params["topic"]
         if not NTFY_TOPIC.match(topic):
             return JSONResponse({"error": "invalid topic"}, status_code=400)
-        import urllib.request
-        sink_dir = next((j.get("sink_dir") for j in jobs.values() if j.get("topic") == topic), None)
-
-        def fetch() -> list[dict[str, Any]]:
-            messages = []
-            try:
-                req = urllib.request.Request(NTFY_MESSAGES.format(topic=topic), headers={"Accept": "application/json"})
-                with urllib.request.urlopen(req, timeout=6) as resp:
-                    for line in resp.read().decode().splitlines():
-                        try:
-                            event = json.loads(line)
-                        except json.JSONDecodeError:
-                            continue
-                        if event.get("event") == "message":
-                            messages.append({"time": event.get("time"), "message": event.get("message", ""), "title": event.get("title", "")})
-            except OSError:
-                pass  # ntfy may be unreachable — the local file inbox below still works
-            if sink_dir:
-                d = Path(sink_dir)
-                if d.is_dir():
-                    for f in sorted(d.glob("*.txt")):
-                        try:
-                            messages.append({"time": f.stat().st_mtime, "message": f.read_text().strip(), "title": "local inbox"})
-                        except OSError:
-                            continue
-            seen, out = set(), []
-            for m in sorted(messages, key=lambda m: m.get("time") or 0):
-                if m["message"] in seen:
-                    continue
-                seen.add(m["message"])
-                out.append(m)
-            return out
-
-        try:
-            return JSONResponse({"messages": await run_in_threadpool(fetch)})
-        except (OSError, ValueError) as exc:
-            return JSONResponse({"error": f"inbox unreadable: {type(exc).__name__}"}, status_code=502)
+        return HTMLResponse(LIVE_PAGE)
 
     async def escalate(request: Request) -> JSONResponse:
         """Hand an inconclusive run to a Tendem human expert. Opt-in per run; never changes the verdict."""
@@ -232,5 +314,6 @@ def create_app(runs_dir: Path) -> Starlette:
         Route("/api/evidence", evidence_list), Route("/api/evidence/{run_id}", evidence), Route("/api/evidence/{run_id}/reverify", reverify), Route("/api/metrics", metrics),
         Route("/api/verify", verify_trace, methods=["POST"]),
         Route("/api/live-demo", start_live, methods=["POST"]), Route("/api/live/{topic}/messages", live_messages),
+        Route("/api/live/{topic}/deliver", live_deliver, methods=["POST"]), Route("/live/{topic}", live_page),
         Route("/api/escalate", escalate, methods=["POST"]),
     ])

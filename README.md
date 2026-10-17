@@ -138,15 +138,17 @@ Drop `--backend local` once the Nebius sandbox is enabled. Each run writes `runs
 
 ## Live proof (real side effect)
 
-The UI's **Run live proof** button runs the same race windows on the host, but the demo providers perform a *real*
-outbound delivery instead of only recording an event: each send POSTs to a fresh `ntfy.sh` topic, and the page streams
-the messages into an in-page inbox. Open the shown `ntfy.sh/<topic>` link on a phone to watch it buzz — the broken agent
-sends after STOP, the fixed agent stays silent. This is a demonstration of the same repo code and the same verifier, not
-the sandboxed verification path (sandboxes run with networking disabled by design).
+The UI's live-proof buttons run the same race windows on the host, but the demo providers perform a *real*
+outbound delivery instead of only recording an event: each send POSTs to this app's own sink endpoint
+(`/api/live/<topic>/deliver`), which feeds the in-page inbox and a public, phone-friendly inbox page at
+`/live/<topic>` — open it on any phone and watch sends arrive. No external service is required. This is a
+demonstration of the same repo code and the same verifier, not the sandboxed verification path (sandboxes
+run with networking disabled by design).
 
-Every live run also writes each send to a local file inbox under `runs/live-<job>/`, and the page merges those files
-into the same inbox — so proof of delivery exists even when the push service is unreachable. Sinks are comma-separated
-and the demo providers understand two schemes: `https://` (POST, e.g. ntfy.sh) and `file://` (offline, one file per send).
+Every live run also writes each send to a local file inbox under `runs/live-<job>/`, merged into the same inbox
+for durability. Sinks are comma-separated and the demo providers understand two schemes: `https://` (POST — the
+app's own endpoint, or any webhook) and `file://` (offline, one file per send). Set `STOPPROOF_NTFY=1` to also
+fan sends out to a public `ntfy.sh` topic as an extra push channel.
 
 ## Human escalation (optional)
 
@@ -185,6 +187,12 @@ cloudflared tunnel --url http://localhost:8000        # prints a public https UR
 Deployment notes: set `STOPPROOF_SANDBOX=nebius` (bubblewrap needs kernel namespaces most container hosts deny), pass
 secrets via env (`--env-file`), never bake `.env` into an image — `.dockerignore` already excludes it. Evidence is written
 to `runs/` inside the container (mount a volume to keep it across redeploys).
+
+Run **one process** (`--workers 1`): job state and live inboxes are in-memory by design — they are transient
+demonstration state, not evidence. The durable, re-verifiable record is the evidence bundle under `runs/`. Run endpoints
+are rate-limited per IP and capped globally (`STOPPROOF_RUN_RATE`, `STOPPROOF_LIVE_RATE`, `STOPPROOF_DELIVER_RATE`,
+`STOPPROOF_MAX_RUNNING`, `STOPPROOF_INBOX_TTL`), live inbox topics are unguessable and expire, and the deliver endpoint
+only accepts topics the app itself created — a forged POST can never reach an inbox or touch a verdict.
 
 ## Manual verification guide
 
