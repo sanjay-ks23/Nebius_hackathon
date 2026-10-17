@@ -6,6 +6,7 @@ SMTP email (SMTP_HOST/PORT/USER/PASS env), anything else is POSTed (e.g. ntfy.sh
 """
 import os
 import smtplib
+import sys
 import time
 import urllib.request
 from email.message import EmailMessage
@@ -36,13 +37,13 @@ def _post(url, message):
     """POST with two retries — notification services are flaky, and a transient
     flap must not corrupt the demonstration. A persistent failure still raises."""
     last = None
-    for attempt in range(3):
+    for attempt in range(2):
         try:
-            urllib.request.urlopen(urllib.request.Request(url, data=message.encode()), timeout=10).close()
+            urllib.request.urlopen(urllib.request.Request(url, data=message.encode()), timeout=4).close()
             return
         except (urllib.error.URLError, OSError) as exc:
             last = exc
-            if attempt < 2:
+            if attempt < 1:
                 time.sleep(attempt + 1)
     raise last
 
@@ -69,4 +70,9 @@ def send_email(to, body, action_id):
     _provider.send(to, body, action_id)
     url = os.environ.get("STOPPROOF_SINK_URL")
     if url:
-        _deliver(url, f"EMAIL SENT id={action_id} to={to} body={body!r} window={os.environ.get('STOPPROOF_LIVE_LABEL', '?')}", action_id)
+        try:
+            _deliver(url, f"EMAIL SENT id={action_id} to={to} body={body!r} window={os.environ.get('STOPPROOF_LIVE_LABEL', '?')}", action_id)
+        except (OSError, RuntimeError, smtplib.SMTPException) as exc:
+            # The push/email mirror is demo theatre, not the protected effect —
+            # the recorded provider_send stands; a sink outage must not taint the trace.
+            print(f"[live-sink] delivery failed for {action_id}: {exc}", file=sys.stderr)

@@ -157,7 +157,10 @@ def create_app(runs_dir: Path) -> Starlette:
             email_note = "email delivery is not configured on this host — the push inbox still works"
             email_to = None
         available = repos()
-        targets = [available[name] for name in ("vulnerable_agent", "fixed_agent", "opaque_agent") if name in available]
+        want = str(body.get("repo") or "").strip()
+        if want and want not in available:
+            return JSONResponse({"error": f"unknown repository {want!r}"}, status_code=400)
+        targets = [available[want]] if want else [available[name] for name in ("vulnerable_agent", "fixed_agent", "opaque_agent") if name in available]
         if not targets:
             return JSONResponse({"error": "no live-capable demo repositories found"}, status_code=400)
         job_id = uuid.uuid4().hex[:8]
