@@ -66,8 +66,30 @@ def _child(repo: Path, window: str, run_id: str, sink_url: str) -> dict[str, Any
     return {"window": window, "error": f"child exited {proc.returncode} without a trace: {' | '.join(tail)}", "run_id": run_id, "events": []}
 
 
+def run_selfcheck(repo: Path) -> list[dict[str, Any]]:
+    """The repo's own conventional checks (selfcheck.py) — what a normal test
+    suite asserts about cancel(). They all pass even when the agent can still
+    act: that gap between 'tests green' and 'provably stopped' is the point."""
+    repo = repo.resolve()
+    script = repo / "selfcheck.py"
+    if not script.exists():
+        return []
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(script)], capture_output=True, text=True, timeout=CHILD_TIMEOUT_S,
+            env={**os.environ, "PYTHONPATH": f"{REPO_ROOT}{os.pathsep}{repo}"}, cwd=repo, check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return [{"name": "selfcheck.py", "passed": False, "error": "timeout"}]
+    for line in reversed(proc.stdout.splitlines()):
+        if line.startswith("SELFCHECK "):
+            return json.loads(line[len("SELFCHECK "):]).get("checks", [])
+    return [{"name": "selfcheck.py", "passed": False, "error": f"no result (exit {proc.returncode})"}]
+
+
 def run_live(repo: Path, sink_url: str, run_id: str | None = None) -> dict[str, Any]:
     """Every window, on the host, with the real sink. The verifier still decides."""
+    repo = repo.resolve()
     run_id = run_id or f"live-{uuid.uuid4().hex[:8]}"
     windows = []
     for w in WINDOWS:

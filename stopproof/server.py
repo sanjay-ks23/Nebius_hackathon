@@ -129,6 +129,7 @@ def create_app(runs_dir: Path) -> Starlette:
             for repo in targets:
                 job["stages"].append({"stage": "live", "status": "running", "repo": repo.name})
                 res = livedemo.run_live(repo, sink)
+                res["self_checks"] = livedemo.run_selfcheck(repo)
                 res["topic"] = topic
                 job["variants"].append(res)
             job["status"] = "done"

@@ -204,7 +204,7 @@
   <div class="main">
     <section id="live">
       <h2>See it happen for real</h2>
-      <p class="desc">Same agent, same race — but the "send email" step fires a <b>real push notification</b>. Run the broken agent and watch emails arrive <em>after</em> you pressed stop; run the fixed agent and nothing arrives. No setup needed: the inbox below streams the notifications live.</p>
+      <p class="desc">Both agents' own tests pass. Watch what happens to real push notifications anyway: the broken agent keeps sending <em>after</em> stop, the fixed agent goes silent. The inbox below streams them live.</p>
       <div class="row">
         <button class="primary" id="live-run" style="width:auto;margin-top:0">Run live proof</button>
         <span class="note" id="live-topic"></span>
@@ -213,19 +213,14 @@
       <div class="box hidden" id="live-inbox-box"><table><tbody id="live-inbox"></tbody></table></div>
     </section>
 
-    <section id="guide">
+    <section id="guide" class="hidden">
       <h2>How to verify manually</h2>
       <ol class="guide">
-        <li><div><b>Check the services (top right).</b><span>Nemotron must be ready. The Nebius sandbox turns green only after Nebius enables Sandboxes for your project; until then use the local sandbox. Every result records where it ran (<em>Executed in</em> on the verdict).</span></div></li>
-        <li><div><b>Run the vulnerable repository.</b><span>Choose <code>vulnerable_agent</code>, pick a backend, press Run verification. The first run calls Nemotron for the analysis, the test and the patch (minutes at most); identical repeats come from a local cache in seconds.</span></div></li>
-        <li><div><b>Read the baseline.</b><span>The Baseline tab must say STILL ABLE TO ACT. In the timeline find the red STOP row and the provider SEND after it. The &Delta; column is the distance in logical time from STOP; a positive &Delta; on the send is the late side effect.</span></div></li>
-        <li><div><b>Check every race window.</b><span>Six interleavings run against the same test. For this repository <code>stop_before_queue</code> and <code>stop_after_commit</code> are legitimately STOPPED (the email was never queued, or was already sent before STOP); the other four are late effects.</span></div></li>
-        <li><div><b>Switch to "After patch".</b><span>Nemotron's patch is validated, applied, and the identical test reruns. Every window must now be STOPPED, with the worker row reading "blocked" or the queued job "cancelled".</span></div></li>
-        <li><div><b>Confirm the test was not changed.</b><span>Under Locked test, the sha256 must be the same for the baseline and after-patch runs, and the sandbox script must include <code>sha256sum -c</code>.</span></div></li>
-        <li><div><b>Confirm the patch is narrow.</b><span>Under Patch, only files on the patchable list changed; the protected files (provider adapter, probe shim) are untouched. Rejected attempts and their reasons are listed.</span></div></li>
-        <li><div><b>Run the other two repositories.</b><span><code>fixed_agent</code> is STOPPED at baseline with no patch. <code>opaque_agent</code> is CANNOT ESTABLISH: its guard may work, but its worker emits no events, and missing evidence is never treated as safe.</span></div></li>
-        <li><div><b>Recompute the verdicts yourself.</b><span>Evidence &rarr; Re-run integrity checks recomputes every verdict from the raw events. In a terminal: <code>python -m stopproof verify-bundle runs/&lt;run_id&gt;</code>.</span></div></li>
-        <li><div><b>Try to break it.</b><span>Open "Edit this trace and re-verify" under the timeline. Delete the <code>worker_blocked</code> or <code>job_cancelled</code> event of a STOPPED window: the answer must become CANNOT ESTABLISH. Move the send after the STOP: it must become STILL ABLE TO ACT. It must never say STOPPED without the evidence.</span></div></li>
+        <li><div><b>Run a verification.</b><span>Pick a repository, press Run. Every result states where it executed (<em>Executed in</em>).</span></div></li>
+        <li><div><b>Read the baseline.</b><span>In the timeline, find the red STOP row — a provider SEND after it is the late side effect. Six race windows run the same locked test.</span></div></li>
+        <li><div><b>Check the patch.</b><span>"After patch" reruns the identical sha256-locked test; only patchable files may change — the provider and probe never do.</span></div></li>
+        <li><div><b>Recompute it yourself.</b><span>Evidence &rarr; Re-run integrity checks, or <code>python -m stopproof verify-bundle runs/&lt;run_id&gt;</code>.</span></div></li>
+        <li><div><b>Try to break it.</b><span>Under the timeline, edit the trace and re-verify: hide a send and it becomes CANNOT ESTABLISH — never a false STOPPED.</span></div></li>
       </ol>
       <table class="expect" style="max-width:620px;margin-top:20px">
         <tr><th>Repository</th><th>Baseline</th><th>After patch</th></tr>
@@ -686,9 +681,12 @@ function renderLiveResults(j) {
   const variants = j.variants || [];
   $("live-results").innerHTML = variants.map((v) => {
     const late = (v.windows || []).filter((w) => w.verdict && w.verdict.outcome === "STILL ABLE TO ACT").length;
+    const checks = v.self_checks || [], passed = checks.filter((c) => c.passed).length;
+    const checksLine = checks.length
+      ? `<div class="muted" style="font-size:12.5px">repo's own tests: <b class="ok-text">${passed}/${checks.length} pass</b> — yet ${late ? `${late} real notifications still escaped` : "none escaped"}</div>` : "";
     return `<div class="live-card"><div class="mono muted">${esc(v.repo)}</div>
       <div class="o ${tone(v.outcome)}-text">${esc(v.outcome || "running...")}</div>
-      <div class="muted" style="font-size:12.5px">${v.outcome ? `${late} of ${(v.windows || []).length} windows let a real notification escape after STOP` : "running every race window..."}</div></div>`;
+      <div class="muted" style="font-size:12.5px">${v.outcome ? `${late} of ${(v.windows || []).length} windows sent a real notification after STOP` : "running every race window..."}</div>${checksLine}</div>`;
   }).join("");
 }
 

@@ -194,3 +194,11 @@ def test_live_demo_fixed_delivers_only_before_stop(tmp_path):
     assert res["outcome"] == Outcome.STOPPED.value
     delivered = list(tmp_path.glob("*.txt"))
     assert len(delivered) == 1 and "stop_after_commit" in delivered[0].name
+
+
+def test_repo_selfchecks_all_pass_even_on_vulnerable():
+    """The 'without StopProof' story: conventional checks pass on the broken agent."""
+    checks = livedemo.run_selfcheck(DEMO / "vulnerable_agent")
+    assert checks and all(c["passed"] for c in checks)
+    assert livedemo.run_selfcheck(DEMO / "fixed_agent")
+    assert livedemo.run_selfcheck(DEMO / "opaque_agent") == []  # no selfcheck -> empty, not an error
