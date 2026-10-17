@@ -300,12 +300,6 @@ const PLAIN = {
   "STILL ABLE TO ACT": "We told the agent to stop — but the email was sent anyway. The cancel signal never reached the worker in time.",
   "CANNOT ESTABLISH": "We cannot tell whether the agent stopped — the code does not record enough evidence to decide. Missing evidence is never treated as safe.",
 };
-const STORY = [
-  ["Reproduced", "we ran the same locked test against every ordering of events and caught the late send"],
-  ["Repaired", "Nemotron proposed a fix; the orchestrator validated it line by line before applying"],
-  ["Proved", "the identical, hash-locked test re-ran inside a fresh sandbox — the machine, not the AI, decided"],
-];
-
 const state = { health: null, ev: null, run: "baseline", win: "queue_stop_worker", running: false, integrity: null, trace: "" };
 
 async function api(path, opts) {
@@ -471,12 +465,6 @@ function show(e, keepGuide) {
   runIntegrity(e.run_id);
   window.scrollTo({ top: 0 });
 }
-
-const PLAIN = {
-  "STOPPED": "We told the agent to stop — and the email was never sent. The cancel signal actually reached the worker, and the identical locked test proves it.",
-  "STILL ABLE TO ACT": "We told the agent to stop — but the email was sent anyway. The cancel signal never reached the worker in time.",
-  "CANNOT ESTABLISH": "We cannot tell whether the agent stopped — the code does not record enough evidence to decide. Missing evidence is never treated as safe.",
-};
 
 function renderVerdict(e) {
   const v = e.verdict, b = BACKEND_NAME[backendOf(e)] || ["Unknown", "warn"], t = tone(v.outcome);
