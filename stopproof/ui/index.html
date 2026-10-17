@@ -6,59 +6,89 @@
 <title>StopProof</title>
 <style>
   :root {
-    --bg: #0e1014; --panel: #14171d; --raise: #1a1e26; --rule: #252a33; --rule2: #313744;
-    --text: #e8eaef; --muted: #9aa2b1; --faint: #687080; --accent: #6d9cf5;
-    --red: #ef5b5b; --green: #3fb77a; --amber: #e0a43a;
-    --red-bg: rgba(239, 91, 91, .10); --green-bg: rgba(63, 183, 122, .10); --amber-bg: rgba(224, 164, 58, .10);
+    --bg: #07080c; --panel: #0d0f16; --raise: #13161f; --rule: #1d212c; --rule2: #2a2f3e;
+    --text: #eef0f6; --muted: #9aa2b4; --faint: #5f6879; --accent: #7ba2ff;
+    --red: #f1626e; --green: #3fca8a; --amber: #e8b04b;
+    --red-bg: rgba(241, 98, 110, .10); --green-bg: rgba(63, 202, 138, .10); --amber-bg: rgba(232, 176, 75, .10);
+    --grad: linear-gradient(92deg, #7ba2ff 0%, #66e0d0 100%);
     --mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
-    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --sans: system-ui, -apple-system, "Inter", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   }
   * { box-sizing: border-box; }
   html { color-scheme: dark; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--sans); }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
   a { color: var(--accent); }
-  button, select, textarea { font: inherit; color: inherit; }
+  button, select, textarea, input { font: inherit; color: inherit; }
   code, pre, .mono { font-family: var(--mono); }
   code { font-size: 12.5px; background: var(--raise); padding: 1px 5px; border-radius: 3px; }
   .hidden { display: none !important; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* header */
-  .top { display: flex; align-items: center; gap: 24px; height: 52px; padding: 0 24px; border-bottom: 1px solid var(--rule); background: var(--panel); }
-  .brand { display: flex; align-items: baseline; gap: 12px; }
-  .brand b { font-size: 15px; }
-  .brand span { color: var(--muted); font-size: 13px; }
-  .services { margin-left: auto; display: flex; gap: 20px; flex-wrap: wrap; }
-  .svc { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); }
-  .svc i { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
-  .svc.ok { color: var(--text); } .svc.ok i { background: var(--green); }
+  .top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 24px; height: 56px; padding: 0 28px; border-bottom: 1px solid var(--rule); background: rgba(7, 8, 12, .82); backdrop-filter: blur(14px); }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand b { font-size: 15.5px; letter-spacing: -.2px; }
+  .brand i { width: 9px; height: 9px; border-radius: 50%; background: var(--grad); display: inline-block; }
+  .services { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .svc { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); padding: 4px 10px; border: 1px solid var(--rule); border-radius: 99px; background: var(--panel); }
+  .svc i { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+  .svc.ok { color: var(--text); } .svc.ok i { background: var(--green); box-shadow: 0 0 8px var(--green); }
   .svc.warn i { background: var(--amber); } .svc.bad i { background: var(--red); }
-  .linkbtn { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font-size: 13px; }
-  .linkbtn:hover { text-decoration: underline; }
+  .linkbtn { background: none; border: 1px solid var(--rule2); border-radius: 6px; padding: 5px 12px; color: var(--muted); cursor: pointer; font-size: 12.5px; transition: color .15s, border-color .15s; }
+  .linkbtn:hover { color: var(--text); border-color: var(--faint); }
+
+  /* hero */
+  .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--rule); padding: 56px 28px 44px; background:
+    radial-gradient(900px 340px at 22% -10%, rgba(123, 162, 255, .14), transparent 60%),
+    radial-gradient(700px 300px at 78% -20%, rgba(102, 224, 208, .10), transparent 60%), var(--bg); }
+  .hero-inner { max-width: 1180px; margin: 0 auto; }
+  .hero-tag { display: inline-block; margin-bottom: 16px; padding: 4px 12px; border: 1px solid var(--rule2); border-radius: 99px; background: var(--panel); font: 500 12px var(--mono); color: var(--muted); letter-spacing: .4px; }
+  .hero h1 { margin: 0; max-width: 20ch; font-size: clamp(34px, 4.6vw, 56px); font-weight: 700; letter-spacing: -.03em; line-height: 1.06; }
+  .hero h1 .grad { font-style: normal; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero-sub { margin: 18px 0 0; max-width: 66ch; font-size: 15.5px; line-height: 1.65; color: var(--muted); }
+  .hero-sub b { color: var(--text); font-weight: 600; }
+  .outcomes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 30px; max-width: 1000px; }
+  @media (max-width: 860px) { .outcomes { grid-template-columns: 1fr; } }
+  .oc { padding: 14px 16px; border: 1px solid var(--rule); border-radius: 10px; background: var(--panel); }
+  .oc b { display: block; font: 700 13.5px var(--mono); letter-spacing: .2px; margin-bottom: 5px; }
+  .oc span { font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .oc.ok { border-top: 2px solid var(--green); } .oc.ok b { color: var(--green); }
+  .oc.bad { border-top: 2px solid var(--red); } .oc.bad b { color: var(--red); }
+  .oc.warn { border-top: 2px solid var(--amber); } .oc.warn b { color: var(--amber); }
+  .pipe { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 30px; font: 13px var(--mono); color: var(--muted); }
+  .pipe span { padding: 6px 13px; border: 1px solid var(--rule2); border-radius: 7px; background: var(--panel); }
+  .pipe i { color: var(--faint); font-style: normal; }
+  .pipe .stop-mark { padding: 6px 13px; border: 1px solid var(--red); border-radius: 7px; color: var(--red); background: var(--red-bg); font-weight: 600; }
+  .pipe .sink { border-color: rgba(123, 162, 255, .5); color: var(--accent); }
 
   /* layout */
-  .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 36px; max-width: 1520px; margin: 0 auto; padding: 24px; }
+  .layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px; max-width: 1520px; margin: 0 auto; padding: 28px; }
   @media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } }
-  h2 { margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; }
+  h2 { margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; letter-spacing: .2px; }
   h2 small { font-weight: 400; color: var(--faint); font-size: 12px; }
-  .side section, .main section { margin-bottom: 32px; }
-  .main section.cols { margin-bottom: 32px; }
+  .side section, .main section { margin-bottom: 30px; }
+  .side section { padding: 16px 18px; border: 1px solid var(--rule); border-radius: 12px; background: var(--panel); }
+  .side h2 { border: 0; padding: 0; }
+  .main section.cols { margin-bottom: 30px; }
   .muted { color: var(--muted); } .faint { color: var(--faint); }
   .ok-text { color: var(--green); } .bad-text { color: var(--red); } .warn-text { color: var(--amber); }
 
   /* controls */
-  label { display: block; margin: 14px 0 5px; font-size: 12px; color: var(--muted); }
+  label { display: block; margin: 14px 0 5px; font-size: 11.5px; font-weight: 500; color: var(--faint); letter-spacing: .4px; text-transform: uppercase; }
   label:first-of-type { margin-top: 0; }
-  select, textarea { width: 100%; padding: 8px 10px; background: var(--raise); border: 1px solid var(--rule2); border-radius: 5px; }
+  select, textarea, input { width: 100%; padding: 8px 10px; background: var(--raise); border: 1px solid var(--rule2); border-radius: 7px; }
+  select:focus, input:focus { border-color: var(--accent); outline: none; }
   select:disabled, option:disabled { color: var(--faint); }
-  button.primary { width: 100%; margin-top: 16px; padding: 9px 12px; border: 0; border-radius: 5px; background: var(--accent); color: #0a1324; font-weight: 600; cursor: pointer; }
+  button.primary { width: 100%; margin-top: 16px; padding: 10px 14px; border: 0; border-radius: 8px; background: var(--grad); color: #050810; font-weight: 700; cursor: pointer; letter-spacing: .2px; transition: filter .15s, transform .1s; }
+  button.primary:hover:not(:disabled) { filter: brightness(1.1); }
+  button.primary:active:not(:disabled) { transform: translateY(1px); }
   button.primary:disabled { opacity: .45; cursor: not-allowed; }
-  button.secondary { padding: 6px 12px; border: 1px solid var(--rule2); border-radius: 5px; background: var(--raise); cursor: pointer; }
+  button.secondary { padding: 6px 12px; border: 1px solid var(--rule2); border-radius: 7px; background: var(--raise); cursor: pointer; transition: border-color .15s; }
   button.secondary:hover { border-color: var(--faint); }
   .note { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
   .note details { margin-top: 8px; } .note summary { cursor: pointer; color: var(--accent); }
   .note ol { margin: 6px 0 0 18px; padding: 0; } .note li { margin-bottom: 4px; }
-  .alert { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--rule2); border-left: 3px solid var(--red); border-radius: 4px; background: var(--red-bg); font-size: 13px; }
+  .alert { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--rule2); border-left: 3px solid var(--red); border-radius: 6px; background: var(--red-bg); font-size: 13px; }
   .alert.warn { border-left-color: var(--amber); background: var(--amber-bg); }
   .alert b { display: block; margin-bottom: 4px; }
   .alert p { margin: 6px 0 0; } .alert ol { margin: 8px 0 0 18px; padding: 0; } .alert li { margin-bottom: 4px; }
@@ -81,14 +111,16 @@
   .side dl.kv { grid-template-columns: 1fr auto; gap: 6px 10px; } .side dl.kv dd { text-align: right; font-family: var(--mono); font-size: 12.5px; }
 
   /* verdict */
-  .verdict { padding: 18px 22px; border: 1px solid var(--rule); border-left-width: 4px; border-radius: 6px; background: var(--panel); }
-  .verdict.ok { border-left-color: var(--green); } .verdict.bad { border-left-color: var(--red); } .verdict.warn { border-left-color: var(--amber); }
-  .verdict .lab { font-size: 12px; color: var(--muted); }
-  .verdict .big { margin: 2px 0 6px; font-size: 30px; font-weight: 700; letter-spacing: .3px; }
+  .verdict { padding: 22px 26px; border: 1px solid var(--rule); border-radius: 14px; background: var(--panel); position: relative; overflow: hidden; }
+  .verdict::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--faint); }
+  .verdict.ok::before { background: var(--green); } .verdict.bad::before { background: var(--red); } .verdict.warn::before { background: var(--amber); }
+  .verdict.ok { box-shadow: 0 0 60px -30px rgba(63, 202, 138, .5); } .verdict.bad { box-shadow: 0 0 60px -30px rgba(241, 98, 110, .55); } .verdict.warn { box-shadow: 0 0 60px -30px rgba(232, 176, 75, .45); }
+  .verdict .lab { font-size: 11.5px; color: var(--faint); letter-spacing: .6px; text-transform: uppercase; }
+  .verdict .big { margin: 4px 0 8px; font-size: 34px; font-weight: 800; letter-spacing: -.01em; }
   .verdict.ok .big { color: var(--green); } .verdict.bad .big { color: var(--red); } .verdict.warn .big { color: var(--amber); }
   .verdict .why { margin: 0; max-width: 95ch; color: var(--muted); }
-  .facts { display: flex; flex-wrap: wrap; gap: 10px 32px; margin: 16px 0 0; padding-top: 12px; border-top: 1px solid var(--rule); }
-  .facts dt { font-size: 11.5px; color: var(--faint); } .facts dd { margin: 0; font-size: 13px; }
+  .facts { display: flex; flex-wrap: wrap; gap: 10px 32px; margin: 18px 0 0; padding-top: 14px; border-top: 1px solid var(--rule); }
+  .facts dt { font-size: 11px; color: var(--faint); text-transform: uppercase; letter-spacing: .4px; } .facts dd { margin: 2px 0 0; font-size: 13px; }
 
   /* tabs + windows */
   .tabs { display: flex; gap: 4px; margin-bottom: 14px; border-bottom: 1px solid var(--rule); }
@@ -153,26 +185,44 @@
   .story li.s { color: var(--text); }
 
   /* live proof */
-  #live { border: 1px solid var(--rule2); border-radius: 8px; background: var(--panel); padding: 18px 22px; }
-  #live h2 { border: 0; padding-bottom: 0; margin-bottom: 6px; }
-  .live-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+  #live { border: 1px solid var(--rule2); border-radius: 14px; background: linear-gradient(180deg, rgba(123, 162, 255, .04), transparent 40%), var(--panel); padding: 22px 26px; }
+  #live h2 { border: 0; padding-bottom: 0; margin-bottom: 6px; font-size: 15px; }
+  .live-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 16px; }
   @media (max-width: 900px) { .live-cards { grid-template-columns: 1fr; } }
-  .live-card { border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; }
-  .live-card .o { font-weight: 700; font-size: 15px; }
-  #live-inbox-box { margin-top: 14px; }
+  .live-card { border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; background: var(--raise); transition: transform .15s, border-color .15s; }
+  .live-card:hover { transform: translateY(-2px); border-color: var(--rule2); }
+  .live-card .o { font-weight: 800; font-size: 16px; margin: 8px 0 4px; letter-spacing: .2px; }
+  #live-inbox-box { margin-top: 14px; border-radius: 10px; }
   #live-inbox td { font: 12.5px var(--mono); }
   #live-inbox .when { width: 90px; color: var(--faint); }
-</style>
+  #live .row { gap: 12px; }
+  #live-email { max-width: 260px; }</style>
 </head>
 <body class="simple">
 
 <header class="top">
-  <div class="brand"><b>StopProof</b><span>Prove your AI agent actually stopped.</span></div>
+  <div class="brand"><i></i><b>StopProof</b></div>
   <div class="services" id="services"></div>
   <button class="linkbtn" id="view-toggle">Technical details</button>
   <button class="linkbtn" id="recheck">Re-check</button>
   <button class="linkbtn" id="guide-toggle">Guide</button>
 </header>
+
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-tag">AI-agent safety verification — Nebius × NVIDIA</div>
+    <h1>Prove your AI agent <span class="grad">actually stopped</span>.</h1>
+    <p class="hero-sub">StopProof cancels an agent mid-task, then replays a hash-locked race test inside an isolated Nebius microVM to prove whether its side effects really stopped. Nemotron finds the bug and proposes the fix — but the verdict is decided by a <b>deterministic verifier</b>, never the AI. Missing evidence is never called safe.</p>
+    <div class="outcomes">
+      <div class="oc ok"><b>STOPPED</b><span>The cancel signal reached the worker — the email was never sent.</span></div>
+      <div class="oc bad"><b>STILL ABLE TO ACT</b><span>We told it to stop — but the email was sent anyway. The bug is real.</span></div>
+      <div class="oc warn"><b>CANNOT ESTABLISH</b><span>Not enough evidence to decide — and we never guess "safe".</span></div>
+    </div>
+    <div class="pipe">
+      <span>agent</span><i>→</i><span>queue</span><b class="stop-mark">✕ STOP</b><i>→</i><span>worker</span><i>→</i><span class="sink">provider — protected sink</span>
+    </div>
+  </div>
+</section>
 
 <div class="layout">
   <aside class="side">
@@ -215,13 +265,13 @@
     </section>
 
     <section id="guide" class="hidden">
-      <h2>How to verify manually</h2>
+      <h2>How to verify it yourself</h2>
       <ol class="guide">
-        <li><div><b>Run a verification.</b><span>Pick a repository, press Run. Every result states where it executed (<em>Executed in</em>).</span></div></li>
-        <li><div><b>Read the baseline.</b><span>In the timeline, find the red STOP row — a provider SEND after it is the late side effect. Six race windows run the same locked test.</span></div></li>
-        <li><div><b>Check the patch.</b><span>"After patch" reruns the identical sha256-locked test; only patchable files may change — the provider and probe never do.</span></div></li>
-        <li><div><b>Recompute it yourself.</b><span>Evidence &rarr; Re-run integrity checks, or <code>python -m stopproof verify-bundle runs/&lt;run_id&gt;</code>.</span></div></li>
-        <li><div><b>Try to break it.</b><span>Under the timeline, edit the trace and re-verify: hide a send and it becomes CANNOT ESTABLISH — never a false STOPPED.</span></div></li>
+        <li><div><b>Run a verification.</b><span>Pick a repository and press Run. Nemotron maps the repo, writes the race test, and proposes the fix; every result states where it ran (<em>Executed in</em>).</span></div></li>
+        <li><div><b>Read the baseline.</b><span>In the timeline, find the red STOP row. A provider SEND after it is a late side effect — six race windows run the same locked test.</span></div></li>
+        <li><div><b>Check the fix.</b><span>"After patch" reruns the identical sha256-locked test. Only patchable files may change — the provider and probe never do.</span></div></li>
+        <li><div><b>Recompute it.</b><span>Evidence &rarr; Re-run integrity checks recomputes every verdict from raw events — or <code>python -m stopproof verify-bundle runs/&lt;run_id&gt;</code>.</span></div></li>
+        <li><div><b>Try to fool it.</b><span>Edit the trace under the timeline and re-verify: hide a send and it answers CANNOT ESTABLISH — it will never say STOPPED without evidence.</span></div></li>
       </ol>
       <table class="expect" style="max-width:620px;margin-top:20px">
         <tr><th>Repository</th><th>Baseline</th><th>After patch</th></tr>
@@ -472,9 +522,10 @@ function renderVerdict(e) {
   const reproduced = !!(e.baseline && e.baseline.outcome === "STILL ABLE TO ACT");
   const repaired = !!(e.patch && e.patch.applied);
   const proved = v.outcome === "STOPPED" && !!(e.after_patch || !e.baseline || e.baseline.outcome === "STOPPED");
+  const fixLine = repaired ? "Nemotron patched the worker" : (e.patch && e.patch.attempted) ? "patch attempted — didn't converge" : "no patch was needed";
   const story = [
-    ["1", "Caught it lying", reproduced ? "a late email escaped after STOP" : "baseline run recorded", reproduced],
-    ["2", "AI wrote the fix", repaired ? "Nemotron patched the worker" : "no patch needed/applied", repaired],
+    ["1", "Caught it", reproduced ? "a late email escaped after STOP" : "baseline run recorded", reproduced],
+    ["2", "AI proposed a fix", fixLine, repaired],
     ["3", "Machine proved it", "same locked test re-ran, verifier decided", proved],
   ].map(([n, h, d, s]) => `<li class="${s ? "s" : ""}"><b>${n}</b><span><b>${h}</b> — ${d}</span></li>`).join("");
   const escalate = v.outcome === "CANNOT ESTABLISH"

@@ -18,6 +18,10 @@ from typing import Any
 MAX_FILE_BYTES = 64_000
 MAX_FILES = 200
 SKIP_DIRS = {".git", ".venv", "venv", "__pycache__", "node_modules", ".pytest_cache", ".stopproof"}
+# StopProof's own instrumentation shipped inside the demo repos (the live-demo
+# self-check). It is not agent code and it calls request_stop()/the worker
+# itself, which would poison the scanner's candidate sets — skip it entirely.
+SKIP_FILES = {"selfcheck.py"}
 SECRET_NAME = re.compile(r"(^\.env|\.pem$|\.key$|^id_rsa|credentials|secrets?\.)", re.I)
 TEXT_SUFFIXES = {".py", ".md", ".txt", ".toml", ".cfg", ".ini", ".json", ".yaml", ".yml"}
 
@@ -50,7 +54,7 @@ def load_snapshot(root: Path) -> RepoSnapshot:
         rel = path.relative_to(root)
         if any(part in SKIP_DIRS for part in rel.parts) or path.is_symlink() or not path.is_file():
             continue
-        if SECRET_NAME.search(path.name) or path.suffix not in TEXT_SUFFIXES or path.stat().st_size > MAX_FILE_BYTES:
+        if path.name in SKIP_FILES or SECRET_NAME.search(path.name) or path.suffix not in TEXT_SUFFIXES or path.stat().st_size > MAX_FILE_BYTES:
             continue
         files[rel.as_posix()] = path.read_text(encoding="utf-8", errors="replace")
         if len(files) > MAX_FILES:

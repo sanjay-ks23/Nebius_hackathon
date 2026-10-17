@@ -135,7 +135,7 @@ def run_id_of(tmp_path):
 def test_ui_is_served(api):
     client, _ = api
     page = client.get("/")
-    assert page.status_code == 200 and "How to verify manually" in page.text and "Edit this trace and re-verify" in page.text
+    assert page.status_code == 200 and "How to verify it yourself" in page.text and "Edit this trace and re-verify" in page.text
 
 
 def test_health_lists_backends_and_picks_the_first_ready_one(api, monkeypatch):
