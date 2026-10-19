@@ -14,7 +14,7 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, Self, TypeVar
 
 from openai import OpenAI
 from pydantic import BaseModel, ValidationError
@@ -31,8 +31,8 @@ class ModelError(RuntimeError):
 
 
 def _extract_json(text: str) -> object:
-    text = re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
-    fenced = re.search(r"```(?:json)?\s*(.*?)```", text, flags=re.S)
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+    fenced = re.search(r"```(?:json)?\s*(.*?)```", text, flags=re.DOTALL)
     if fenced:
         text = fenced.group(1).strip()
     try:
@@ -49,6 +49,121 @@ def _want_tracing() -> bool:
     return os.environ.get("LANGSMITH_TRACING", "").strip().lower() in {"1", "true", "yes"} and bool(os.environ.get("LANGSMITH_API_KEY"))
 
 
+class TraceSession:
+    """Hierarchical LangSmith trace for one StopProof pipeline run.
+
+    Nests all wrapped Nemotron calls + sandbox/verifier tool spans under a single
+    root RunTree, posts deterministic verifier outcomes as LangSmith feedback,
+    and resolves a shareable public URL when supported. Strictly best-effort:
+    observability never alters a verdict or fails a run.
+    """
+
+    def __init__(self, enabled: bool, run_id: str, repo: str, backend: str) -> None:
+        self.enabled = bool(enabled)
+        self.run_id = run_id
+        self.repo = repo
+        self.backend = backend
+        self.project = os.environ.get("LANGSMITH_PROJECT", "stopproof")
+        self.spans: list[dict[str, Any]] = []
+        self.feedback: list[dict[str, Any]] = []
+        self.ls_run_id: str | None = None
+        self.trace_url: str | None = None
+        self._client: Any = None
+        self._root: Any = None
+        self._ctx: Any = None
+
+    def __enter__(self) -> Self:
+        if not self.enabled:
+            return self
+        try:
+            import langsmith
+            from langsmith.run_trees import RunTree
+
+            self._client = langsmith.Client()
+            self._root = RunTree(
+                name=f"stopproof.run ({self.repo})",
+                run_type="chain",
+                project_name=self.project,
+                client=self._client,
+                inputs={"run_id": self.run_id, "repo": self.repo, "backend": self.backend},
+                tags=["stopproof", self.repo, self.backend],
+                extra={"metadata": {"stopproof_run_id": self.run_id, "repo": self.repo, "backend": self.backend}},
+            )
+            self._root.post()
+            self.ls_run_id = str(self._root.id)
+            self._ctx = langsmith.tracing_context(
+                parent=self._root,
+                project_name=self.project,
+                client=self._client,
+                tags=["stopproof", self.repo],
+                metadata={"stopproof_run_id": self.run_id, "repo": self.repo},
+            )
+            self._ctx.__enter__()
+        except Exception as exc:  # noqa: BLE001 - tracing is best-effort observability
+            log.warning("langsmith_session_start_failed reason=%s", exc)
+            self._root = self._ctx = None
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+        if self._ctx is not None:
+            try:
+                self._ctx.__exit__(exc_type, exc, tb)
+            except Exception as err:  # noqa: BLE001
+                log.debug("langsmith_context_exit_failed reason=%s", err)
+
+    def span(self, name: str, run_type: str = "tool", inputs: dict[str, Any] | None = None, outputs: dict[str, Any] | None = None) -> None:
+        self.spans.append({"name": name, "run_type": run_type, "inputs": inputs or {}, "outputs": outputs or {}})
+        if self._root is None:
+            return
+        try:
+            child = self._root.create_child(name=name, run_type=run_type, inputs=inputs or {})
+            child.post()
+            child.end(outputs=outputs or {})
+            child.patch()
+        except Exception as exc:  # noqa: BLE001
+            log.debug("langsmith_span_failed name=%s reason=%s", name, exc)
+
+    def record_feedback(self, key: str, score: float, value: str | None = None, comment: str = "") -> None:
+        self.feedback.append({"key": key, "score": score, "value": value, "comment": comment})
+        if self._client is None or not self.ls_run_id:
+            return
+        try:
+            self._client.create_feedback(self.ls_run_id, key=key, score=score, value=value, comment=comment)
+        except Exception as exc:  # noqa: BLE001
+            log.debug("langsmith_feedback_failed key=%s reason=%s", key, exc)
+
+    def finish(self, verdict: dict[str, Any]) -> dict[str, Any]:
+        outcome = str(verdict.get("outcome", "CANNOT ESTABLISH"))
+        self.record_feedback(
+            "verifier_outcome",
+            score=1.0 if outcome == "STOPPED" else 0.0,
+            value=outcome,
+            comment=str(verdict.get("reason", ""))[:300],
+        )
+        if self._root is not None:
+            try:
+                self._root.end(outputs={"verdict": verdict, "run_id": self.run_id})
+                self._root.patch()
+            except Exception as exc:  # noqa: BLE001
+                log.debug("langsmith_root_finish_failed reason=%s", exc)
+        if self._client is not None and self.ls_run_id:
+            try:
+                self.trace_url = str(self._client.share_run(self.ls_run_id))
+            except Exception as exc:  # noqa: BLE001
+                log.debug("langsmith_share_run_failed reason=%s", exc)
+        return self.to_dict()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "enabled": self.enabled,
+            "project": self.project if self.enabled else None,
+            "run_id": self.ls_run_id,
+            "trace_url": self.trace_url,
+            "spans": [s["name"] for s in self.spans],
+            "feedback": list(self.feedback),
+        }
+
+
 class Nemotron:
     def __init__(self, cache: bool = True) -> None:
         key = os.environ.get("NEBIUS_API_KEY")
@@ -62,7 +177,7 @@ class Nemotron:
                 from langsmith.wrappers import wrap_openai
 
                 self.client = wrap_openai(self.client)
-            except Exception as exc:  # tracing is observability, never a failure mode
+            except Exception as exc:  # noqa: BLE001 - tracing is observability, never a failure mode
                 log.warning("langsmith_tracing_disabled reason=%s", exc)
                 self.tracing = False
         self.cache = cache
@@ -149,7 +264,7 @@ class Nemotron:
             except Exception as exc:  # network / auth / quota: fail clearly, do not degrade
                 raise ModelError(f"model request failed at stage {stage!r}: {type(exc).__name__}: {str(exc)[:300]}") from exc
             choice = resp.choices[0]
-            text = re.sub(r"<think>.*?</think>", "", choice.message.content or "", flags=re.S).strip()
+            text = re.sub(r"<think>.*?</think>", "", choice.message.content or "", flags=re.DOTALL).strip()
             log.info("model_response stage=%s seconds=%.1f tokens=%s finish=%s", stage, time.monotonic() - started, getattr(resp.usage, "total_tokens", "?"), choice.finish_reason)
             if not text or choice.finish_reason == "length":  # empty or cut off mid-reply: never act on a truncated edit list
                 log.warning("model_reply_unusable stage=%s attempt=%d finish=%s", stage, attempt, choice.finish_reason)

@@ -22,12 +22,12 @@ SKIP_DIRS = {".git", ".venv", "venv", "__pycache__", "node_modules", ".pytest_ca
 # self-check). It is not agent code and it calls request_stop()/the worker
 # itself, which would poison the scanner's candidate sets — skip it entirely.
 SKIP_FILES = {"selfcheck.py"}
-SECRET_NAME = re.compile(r"(^\.env|\.pem$|\.key$|^id_rsa|credentials|secrets?\.)", re.I)
+SECRET_NAME = re.compile(r"(^\.env|\.pem$|\.key$|^id_rsa|credentials|secrets?\.)", re.IGNORECASE)
 TEXT_SUFFIXES = {".py", ".md", ".txt", ".toml", ".cfg", ".ini", ".json", ".yaml", ".yml"}
 
 HANDOFF_CALLS = {"enqueue", "put", "put_nowait", "submit", "delay", "apply_async", "send_task", "schedule", "publish", "create_task"}
-STOP_NAME = re.compile(r"(stop|cancel|abort|kill|shutdown|interrupt|revoke)", re.I)
-WORKER_NAME = re.compile(r"(worker|consume|dequeue|drain|handle|process_job|run_until)", re.I)
+STOP_NAME = re.compile(r"(stop|cancel|abort|kill|shutdown|interrupt|revoke)", re.IGNORECASE)
+WORKER_NAME = re.compile(r"(worker|consume|dequeue|drain|handle|process_job|run_until)", re.IGNORECASE)
 SINK_CALLS = {"send_email", "send_mail", "sendmail", "send", "post"}
 
 

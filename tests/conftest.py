@@ -19,7 +19,7 @@ def run_race_locally(repo: Path, test: Path = REFERENCE_TEST) -> dict:
     repo = repo.resolve()
     env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(ROOT), str(repo)]), "PYTHONHASHSEED": "0"}
     proc = subprocess.run(
-        [sys.executable, str(test), "--run-id", "test"], capture_output=True, text=True, env=env, cwd=repo, timeout=120
+        [sys.executable, str(test), "--run-id", "test"], capture_output=True, text=True, env=env, cwd=repo, timeout=120, check=False
     )
     line = next((l for l in proc.stdout.splitlines() if l.startswith("STOPPROOF_RESULT ")), None)
     assert line, proc.stderr[-2000:]

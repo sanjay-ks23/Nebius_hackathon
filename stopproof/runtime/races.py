@@ -16,9 +16,9 @@ import json
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from collections.abc import Callable
 
 from . import events
 
@@ -86,7 +86,7 @@ def run_window(build: Callable[[Path], Scenario], window: RaceWindow, run_id: st
                 deliver_stop()
             scenario.drain_worker()
             events.emit("worker_drain_finished")
-        except Exception as exc:  # the trace stays incomplete -> verifier cannot establish
+        except Exception as exc:  # noqa: BLE001 - the trace stays incomplete -> verifier cannot establish
             error = f"{type(exc).__name__}: {exc}"
         events.emit("run_finished", **({"error": error} if error else {}))
     return {"window": window.name, "error": error, **rec.to_dict()}
@@ -98,6 +98,7 @@ def _run_child(window: RaceWindow, run_id: str) -> dict:
         capture_output=True,
         text=True,
         timeout=CHILD_TIMEOUT_S,
+        check=False,
     )
     for line in reversed(proc.stdout.splitlines()):
         if line.startswith(TRACE_MARKER):

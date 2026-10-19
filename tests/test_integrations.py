@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from stopproof import escalation, intel, livedemo
-from stopproof.model import Nemotron
+from stopproof.model import Nemotron, TraceSession
 from stopproof.verifier import Outcome
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -48,11 +48,23 @@ def test_intel_failure_is_silent(monkeypatch, tmp_path):
 
 
 def test_repair_context_builds_block(monkeypatch):
+    intel.reset_provenance()
     monkeypatch.setattr(intel, "search", lambda q: ["cancel docs — check the flag (https://x)"])
-    block = intel.repair_context("the locked test still fails: provider_send after stop_requested in queue")
+    block = intel.repair_context("the locked test still fails: provider_send after stop_requested in queue", {"worker_entry": {"symbol": "Worker.handle"}})
     assert "cancel docs" in block and block.startswith("Documentation and patterns")
+    prov = intel.provenance()
+    assert prov["queries_run"] == 3 and prov["snippets_injected"] == 3
+    assert {item["stage"] for item in prov["lookups"]} == {"repair"}
     monkeypatch.setattr(intel, "search", lambda q: [])
     assert intel.repair_context("some rejection") == ""
+
+
+def test_test_context_and_provenance(monkeypatch):
+    intel.reset_provenance()
+    monkeypatch.setattr(intel, "search", lambda q: ["race test docs — drain queue (https://x)"])
+    block = intel.test_context({"dependencies": {"third_party_imports": ["rq"]}}, {"handoff": {"symbol": "enqueue"}, "worker_entry": {"symbol": "Worker.handle"}})
+    assert "race test docs" in block and "testing queue-to-worker cancellation" in block
+    assert intel.provenance()["lookups"][0]["stage"] == "generate_test"
 
 
 # ---- LangSmith tracing ----------------------------------------------------------
@@ -73,6 +85,17 @@ def test_tracing_wraps_client(monkeypatch):
     meta = m._trace_meta("repair", 2)
     assert meta["langsmith_extra"]["run_name"] == "stopproof.repair"
     assert meta["langsmith_extra"]["metadata"] == {"stage": "repair", "attempt": 2}
+
+
+def test_trace_session_records_spans_and_verifier_feedback():
+    session = TraceSession(enabled=False, run_id="run-123", repo="vulnerable_agent", backend="nebius-sandbox")
+    with session:
+        session.span("sandbox.exec.baseline", inputs={"test_sha256": "abc"}, outputs={"outcome": "STILL ABLE TO ACT"})
+        session.record_feedback("patch_attempt", score=1.0, value="STOPPED", comment="attempt 1")
+    info = session.finish({"outcome": "STOPPED", "reason": "no late send"})
+    assert info["spans"] == ["sandbox.exec.baseline"]
+    assert [f["key"] for f in info["feedback"]] == ["patch_attempt", "verifier_outcome"]
+    assert info["feedback"][-1]["score"] == 1.0 and info["feedback"][-1]["value"] == "STOPPED"
 
 
 # ---- Tendem escalation ----------------------------------------------------------

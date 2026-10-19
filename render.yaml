@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: stopproof
+    runtime: docker
+    plan: starter
+    numInstances: 1
+    healthCheckPath: /
+    disk:
+      name: stopproof-runs
+      mountPath: /app/runs
+      sizeGB: 5
+    envVars:
+      - key: STOPPROOF_SANDBOX
+        value: nebius
+      - key: STOPPROOF_MODEL
+        value: nvidia/nemotron-3-super-120b-a12b
+      - key: STOPPROOF_RUN_RATE
+        value: "30"
+      - key: STOPPROOF_LIVE_RATE
+        value: "30"
+      - key: STOPPROOF_MAX_RUNNING
+        value: "8"
+      - key: NEBIUS_API_KEY
+        sync: false
+      - key: NEBIUS_AI_PROJECT
+        sync: false
+      - key: LANGSMITH_API_KEY
+        sync: false
+      - key: LANGSMITH_TRACING
+        value: "true"
+      - key: LANGSMITH_PROJECT
+        value: stopproof
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: TENDEM_API_KEY
+        sync: false

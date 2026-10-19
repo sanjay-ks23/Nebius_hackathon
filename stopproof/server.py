@@ -19,8 +19,8 @@ from starlette.requests import Request
 from starlette.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from starlette.routing import Route
 
-from . import benchmark, escalation, livedemo
-from .model import ModelError, Nemotron
+from . import benchmark, escalation, intel, livedemo
+from .model import ModelError, Nemotron, _want_tracing
 from .orchestrator import Pipeline
 from .sandbox import BACKENDS, SandboxUnavailable, backend_status, make_sandbox
 from .verifier import reverify_bundle, verify
@@ -35,10 +35,10 @@ MAX_DELIVER_BYTES = 4_000
 MAX_INBOX = 100
 MAX_JOBS = 256
 INBOX_TTL = int(os.environ.get("STOPPROOF_INBOX_TTL", str(2 * 3600)))  # live inboxes expire after this many seconds
-DELIVER_RATE = (int(os.environ.get("STOPPROOF_DELIVER_RATE", "120")), 60)  # max deliveries per IP per window
-RUN_RATE = (int(os.environ.get("STOPPROOF_RUN_RATE", "6")), 60)  # max runs per IP per window (seconds)
-LIVE_RATE = (int(os.environ.get("STOPPROOF_LIVE_RATE", "6")), 60)  # max live demos per IP per window
-MAX_RUNNING = int(os.environ.get("STOPPROOF_MAX_RUNNING", "4"))  # global cap on in-flight jobs
+DELIVER_RATE = (int(os.environ.get("STOPPROOF_DELIVER_RATE", "300")), 60)  # max deliveries per IP per window
+RUN_RATE = (int(os.environ.get("STOPPROOF_RUN_RATE", "30")), 60)  # max runs per IP per window (seconds)
+LIVE_RATE = (int(os.environ.get("STOPPROOF_LIVE_RATE", "30")), 60)  # max live demos per IP per window
+MAX_RUNNING = int(os.environ.get("STOPPROOF_MAX_RUNNING", "8"))  # global cap on in-flight jobs
 
 
 def create_app(runs_dir: Path) -> Starlette:
@@ -83,7 +83,15 @@ def create_app(runs_dir: Path) -> Starlette:
 
     def probe() -> dict[str, Any]:
         load_dotenv(override=True)  # lets "re-check" pick up a changed .env without a restart
-        out: dict[str, Any] = {"repos": list(repos()), "backends": backend_status()}
+        out: dict[str, Any] = {
+            "repos": list(repos()),
+            "backends": backend_status(),
+            "integrations": {
+                "langsmith": {"ok": _want_tracing(), "project": os.environ.get("LANGSMITH_PROJECT", "stopproof")},
+                "tavily": {"ok": intel.enabled()},
+                "tendem": {"ok": escalation.enabled()},
+            },
+        }
         try:
             out["model"] = {"ok": True, "name": Nemotron(cache=False).model}
         except ModelError as exc:
@@ -269,21 +277,30 @@ def create_app(runs_dir: Path) -> Starlette:
             out.append(m)
         return JSONResponse({"messages": out})
 
-    LIVE_PAGE = """<!doctype html><meta name=viewport content="width=device-width,initial-scale=1"><title>StopProof live inbox</title>
-<style>body{margin:0;background:#0e1014;color:#e8eaef;font:15px/1.6 system-ui,sans-serif;padding:22px}
-h1{font-size:17px}.m{border-bottom:1px solid #252a33;padding:10px 0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
-.t{color:#687080;font-size:11.5px;margin-right:10px}</style>
-<h1>StopProof live inbox</h1><p style="color:#9aa2b1">Every send the agent performs lands here in real time.</p>
-<div id=inbox><div class=m style=color:#687080>waiting for sends…</div></div>
+    LIVE_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>StopProof — Live Outbound Inbox</title>
+<style>body{margin:0;background:#0b0e14;color:#e6edf3;font:14px/1.55 system-ui,-apple-system,sans-serif;padding:20px;max-width:760px;margin-inline:auto}
+header{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid #21262d;padding-bottom:10px;margin-bottom:14px}
+h1{font-size:16px;margin:0}small{color:#7d8590;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+.box{border:1px solid #21262d;border-radius:6px;background:#11151c;overflow:hidden}
+.m{display:flex;gap:10px;align-items:baseline;border-bottom:1px solid #21262d;padding:10px 14px;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace}
+.m:last-child{border-bottom:0}.m.sent{background:rgba(248,81,73,.09);border-left:3px solid #f85149}
+.t{color:#7d8590;font-size:11.5px;flex:0 0 74px}.b{padding:1px 6px;border-radius:3px;font-size:11px;font-weight:600;background:#21262d;color:#8b949e}
+.m.sent .b{background:rgba(248,81,73,.18);color:#ff7b72}</style></head><body>
+<header><h1>StopProof live outbound inbox</h1><small id="st">polling…</small></header>
+<p style="color:#8b949e;margin:0 0 14px">Every real outbound send performed by the agent during the race test lands here in real time.</p>
+<div class="box" id="inbox"><div class="m" style="color:#7d8590">waiting for outbound deliveries…</div></div>
 <script>
-const t = location.pathname.split("/").pop(), box = document.getElementById("inbox");
+const t = location.pathname.split("/").pop(), box = document.getElementById("inbox"), st = document.getElementById("st");
 async function poll(){ try{ const r = await fetch("/api/live/"+encodeURIComponent(t)+"/messages"); const d = await r.json();
-  if(d.messages && d.messages.length){ box.innerHTML=""; for(const m of d.messages){
-    const row=document.createElement("div"); row.className="m";
+  if(d.messages && d.messages.length){ box.innerHTML=""; st.textContent = d.messages.length + " event(s)"; for(const m of d.messages){
+    const sent = String(m.message||"").startsWith("EMAIL SENT");
+    const row=document.createElement("div"); row.className="m"+(sent?" sent":"");
     const ts=document.createElement("span"); ts.className="t"; ts.textContent=new Date(m.time*1000).toLocaleTimeString();
-    row.appendChild(ts); row.appendChild(document.createTextNode(m.message)); box.appendChild(row);} } }catch(e){}
+    const bd=document.createElement("span"); bd.className="b"; bd.textContent=sent?"OUTBOUND SEND":"SYSTEM";
+    const tx=document.createElement("span"); tx.textContent=m.message;
+    row.append(ts,bd,tx); box.appendChild(row);} } }catch(e){ st.textContent="reconnecting…"; }
   setTimeout(poll,1500);} poll();
-</script>"""
+</script></body></html>"""
 
     async def live_page(request: Request) -> Response:
         """Public phone-friendly inbox: open /live/<topic> anywhere and watch sends arrive."""

@@ -39,7 +39,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         model = Nemotron(cache=False)
         reply = model.client.chat.completions.create(model=model.model, messages=[{"role": "user", "content": 'Reply with the JSON {"ok": true}'}], max_tokens=200, response_format={"type": "json_object"})
         print(f"[ok]   Token Factory inference: model={model.model} reply={reply.choices[0].message.content.strip()[:40]}")
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         print(f"[fail] Token Factory inference: {type(exc).__name__}: {str(exc)[:200]}")
         status = 1
     for name, info in backend_status().items():
@@ -47,7 +47,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     try:
         result = make_sandbox(args.backend).check()
         print(f"[ok]   selected backend '{args.backend}' executed a bundle: op={result['operation_id'][:8]} exit={result['exit_code']} output={result['stdout'].strip().splitlines()[-1]!r}")
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         print(f"[fail] selected backend '{args.backend}': {type(exc).__name__}: {str(exc)[:300]}")
         if getattr(exc, "code", None) == "not_enabled":
             print(NOT_ENABLED_HINT)

@@ -159,40 +159,64 @@ never changes a recorded verdict — the human's review is supplementary evidenc
 
 ## Optional integrations
 
-All three are additive and degrade to no-ops when their env vars are unset — they can never influence a verdict.
+All three are additive and degrade to no-ops when their env vars are unset — they can never influence a verdict. Every run records its integration provenance under `evidence["integrations"]`.
 
 | Service | Where | What it does |
 |---|---|---|
-| LangSmith | `stopproof/model.py` | Wraps the OpenAI client; every Nemotron proposal lands as a trace tagged `stopproof.<stage>` under `LANGSMITH_PROJECT` |
-| Tavily | `stopproof/intel.py` → `agent.py` | Searches real library docs during analysis, and again when a patch attempt is rejected (informed retries instead of blind ones) |
-| Tendem | `stopproof/escalation.py` → `server.py` | `POST /api/escalate` hands an inconclusive run to a human expert reviewer |
+| LangSmith | `stopproof/model.py` → `orchestrator.py` | Creates a single hierarchical `RunTree` (`stopproof.run`) per verification run nesting all wrapped Nemotron calls plus `sandbox.exec` and `verifier.decide` tool spans, posts deterministic verifier scores (`verifier_outcome` and `patch_attempt`) via `create_feedback`, and generates a shareable public trace URL (`share_run`) |
+| Tavily | `stopproof/intel.py` → `agent.py` | Grounds all three model stages in real documentation: `analysis_context` (queue + protected-sink semantics), `test_context` (deterministic race-test patterns), and `repair_context` (`search_depth="advanced"` + `include_answer=True` on rejected patch attempts), recording every lookup and snippet count in `evidence["integrations"]["tavily"]` |
+| Tendem | `stopproof/escalation.py` → `server.py` | `POST /api/escalate` hands an inconclusive (`CANNOT ESTABLISH`) run to a human expert reviewer via remote MCP |
 
-## Deploying the page
+## Production hosting guide (for hackathon judges)
 
-The app is a long-running process (a verification run spans minutes and holds job state), so deploy it as a container,
-not as serverless functions. Execution already happens in remote Nebius microVMs — the host only orchestrates — so any
-host with outbound HTTPS works.
+StopProof is a stateful, long-running orchestrator (a verification run spans 30–120s while coordinating Nebius microVMs and streaming live outbound deliveries). Deploy it as **a single container instance (`--workers 1`)** with outbound HTTPS. Because target code executes inside remote Nebius Token Factory microVMs (`STOPPROOF_SANDBOX=nebius`), the web host only needs Python + outbound HTTPS.
+
+### Option A — Render / Railway one-click Docker deploy (recommended permanent URL)
+
+This repo ships a `Dockerfile` (with `HEALTHCHECK`) and a `render.yaml` blueprint configured for single-instance hosting and a persistent disk at `/app/runs`.
+
+1. Push this repository to GitHub.
+2. **On Render**: New → **Blueprint** → select the repo (reads `render.yaml`), or **New Web Service** → Docker.
+   **On Railway**: New Project → **Deploy from GitHub repo** (auto-detects `Dockerfile`) → attach a Volume mounted at `/app/runs`.
+3. Set the environment variables in the dashboard:
+   - **Required**: `NEBIUS_API_KEY`, `NEBIUS_AI_PROJECT`, `STOPPROOF_SANDBOX=nebius`
+   - **Recommended sponsor integrations**: `LANGSMITH_API_KEY`, `LANGSMITH_TRACING=true`, `LANGSMITH_PROJECT=stopproof`, `TAVILY_API_KEY`, `TENDEM_API_KEY`
+   - **Judge traffic tuning** (already set in `render.yaml` so multiple judges on shared venue Wi-Fi never hit rate limits):
+     `STOPPROOF_RUN_RATE=30`, `STOPPROOF_LIVE_RATE=30`, `STOPPROOF_DELIVER_RATE=300`, `STOPPROOF_MAX_RUNNING=8`
+4. Open the generated `https://<your-app>.onrender.com` (or Railway domain). Both `X-Forwarded-Proto` and `X-Forwarded-Host` are honored automatically, so the self-hosted live inbox (`/live/<topic>`) works on any judge's phone over HTTPS.
+
+### Option B — Cloud VM (Nebius Cloud / DigitalOcean / AWS / Hetzner) with Docker + automatic HTTPS
 
 ```bash
+git clone https://github.com/sanjay-ks23/Nebius_hackathon.git && cd Nebius_hackathon
+cp .env.example .env   # fill in NEBIUS_API_KEY, NEBIUS_AI_PROJECT, and optional keys
 docker build -t stopproof .
-docker run --env-file .env -p 8000:8000 stopproof     # http://localhost:8000
+docker run -d --name stopproof --restart unless-stopped \
+  --env-file .env -v stopproof-runs:/app/runs -p 8000:8000 stopproof
 ```
 
-Or for an instant public URL during a demo, from the machine already running `serve`:
+Put Caddy in front for zero-config TLS:
 
 ```bash
-cloudflared tunnel --url http://localhost:8000        # prints a public https URL
+caddy reverse-proxy --from stopproof.yourdomain.com --to 127.0.0.1:8000
 ```
 
-Deployment notes: set `STOPPROOF_SANDBOX=nebius` (bubblewrap needs kernel namespaces most container hosts deny), pass
-secrets via env (`--env-file`), never bake `.env` into an image — `.dockerignore` already excludes it. Evidence is written
-to `runs/` inside the container (mount a volume to keep it across redeploys).
+### Option C — Instant public HTTPS URL from your machine (Cloudflare Tunnel)
 
-Run **one process** (`--workers 1`): job state and live inboxes are in-memory by design — they are transient
-demonstration state, not evidence. The durable, re-verifiable record is the evidence bundle under `runs/`. Run endpoints
-are rate-limited per IP and capped globally (`STOPPROOF_RUN_RATE`, `STOPPROOF_LIVE_RATE`, `STOPPROOF_DELIVER_RATE`,
-`STOPPROOF_MAX_RUNNING`, `STOPPROOF_INBOX_TTL`), live inbox topics are unguessable and expire, and the deliver endpoint
-only accepts topics the app itself created — a forged POST can never reach an inbox or touch a verdict.
+If you want judges to access the exact instance running on your laptop/workstation (with both `nebius` microVMs and `local` bubblewrap available, plus all pre-recorded runs in `runs/`):
+
+```bash
+python -m stopproof serve --host 0.0.0.0 --port 8000
+cloudflared tunnel --url http://localhost:8000
+```
+
+`cloudflared` prints an instant `https://<random>.trycloudflare.com` URL that forwards `X-Forwarded-Host`/`X-Forwarded-Proto` to StopProof — share that link with judges and QR-code the `/live/<topic>` inbox onto a phone.
+
+### Production architecture & security notes
+
+- **Single process (`1 instance`)**: Job progress and live inboxes are held in process memory as transient demonstration state. The durable, tamper-evident record is the evidence bundle written to `runs/<run_id>/evidence.json` (persisted across redeploys when `/app/runs` is mounted on a volume).
+- **Self-contained live proof**: Outbound sends POST to `/api/live/<topic>/deliver` on the app's own origin and stream to `/live/<topic>`. No third-party push service is required (`STOPPROOF_NTFY=1` is optional).
+- **Abuse & path protection**: Topics are ~100-bit unguessable IDs, only topics minted by the server are accepted by `/deliver`, payloads and inbox sizes are capped, inboxes expire after `STOPPROOF_INBOX_TTL` (default 2h), and internal filesystem paths are stripped from all API responses.
 
 ## Manual verification guide
 

@@ -9,12 +9,12 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-from collections.abc import Callable
 
-from . import agent, analysis, patching
-from .model import ModelError, Nemotron
+from . import agent, analysis, escalation, intel, patching
+from .model import ModelError, Nemotron, TraceSession
 from .runtime.races import WINDOWS
 from .sandbox import SandboxUnavailable
 from .tools import PolicyDenied, RunResult, SandboxRunner, TestRunError, Tools
@@ -32,6 +32,7 @@ class Pipeline:
         self.repo, self.model, self.sandbox, self.out_dir, self.on_event = repo, model, sandbox, out_dir, on_event
         self.stages: list[dict[str, Any]] = []
         self.tools: Tools | None = None
+        self.trace_session: TraceSession | None = None
 
     def _stage(self, name: str, status: str, **detail: Any) -> None:
         entry = {"stage": name, "status": status, **detail}
@@ -42,20 +43,30 @@ class Pipeline:
 
     def run(self) -> dict[str, Any]:
         started = time.monotonic()
+        intel.reset_provenance()
         evidence: dict[str, Any] = {"schema": 1, "stages": self.stages}
+        backend_id = getattr(self.sandbox, "backend", "unknown")
         try:
             snapshot = analysis.load_snapshot(self.repo)
             self.tools = Tools(snapshot, self.sandbox)
             evidence.update(run_id=self.tools.run_id, repository={"path": self.repo.name, "digest": snapshot.digest, "files": sorted(snapshot.files)},
-                            execution={"backend": getattr(self.sandbox, "backend", "unknown"), "label": getattr(self.sandbox, "label", "unknown")})
+                            execution={"backend": backend_id, "label": getattr(self.sandbox, "label", "unknown")})
             log.info("pipeline_start run=%s repo=%s", self.tools.run_id, self.repo.name)
-            self._execute(evidence)
+            self.trace_session = TraceSession(getattr(self.model, "tracing", False), self.tools.run_id, self.repo.name, backend_id)
+            with self.trace_session:
+                self._execute(evidence)
         except EXPECTED_ERRORS as exc:
             stage = self.stages[-1]["stage"] if self.stages else "load"
             self._stage(stage, "error", error=f"{type(exc).__name__}: {exc}")
             evidence["error"] = {"stage": stage, "type": type(exc).__name__, "message": str(exc)}
             evidence.setdefault("run_id", f"run-failed-{int(time.time())}")
             evidence.setdefault("verdict", {"outcome": Outcome.CANNOT_ESTABLISH.value, "reason": f"pipeline failed at stage {stage!r}: {exc}"})
+        ls_info = self.trace_session.finish(evidence.get("verdict", {})) if self.trace_session else {"enabled": False, "project": None, "run_id": None, "trace_url": None, "spans": [], "feedback": []}
+        evidence["integrations"] = {
+            "langsmith": ls_info,
+            "tavily": intel.provenance(),
+            "tendem": {"enabled": escalation.enabled()},
+        }
         evidence["audit"] = self.tools.audit if self.tools else []
         evidence["metrics"] = self._metrics(started)
         evidence["summary"] = summarize(evidence)
@@ -75,6 +86,8 @@ class Pipeline:
         tools.enter_stage("test")
         baseline = self._baseline(found, evidence)
         evidence["baseline"] = baseline.to_dict()
+        if self.trace_session:
+            self.trace_session.span("sandbox.exec.baseline", inputs={"test_sha256": baseline.test_sha256}, outputs={"outcome": baseline.outcome.value, "operation_id": baseline.sandbox.get("operation_id")})
         evidence["workflow_smoke"] = tools.call("run_workflow")
         self._stage("baseline", "done", outcome=baseline.outcome.value, windows={w["window"]: w["verdict"]["outcome"] for w in baseline.windows})
 
@@ -88,6 +101,8 @@ class Pipeline:
         deciding = next(w for w in final.windows if w["verdict"]["outcome"] == final.outcome.value)
         evidence["verdict"] = {"outcome": final.outcome.value, "source": "deterministic verifier over sandbox traces", "run": final.label,
                                "window": deciding["window"], "reason": deciding["verdict"]["reason"]}
+        if self.trace_session:
+            self.trace_session.span("verifier.decide", inputs={"run": final.label, "windows": len(final.windows)}, outputs=evidence["verdict"])
         self._stage("verdict", "done", outcome=final.outcome.value)
 
     def _baseline(self, found: dict[str, Any], evidence: dict[str, Any]) -> RunResult:
@@ -147,6 +162,9 @@ class Pipeline:
                 continue
             record["status"], record["outcome"] = "executed", last.outcome.value
             record["windows"] = {w["window"]: w["verdict"]["outcome"] for w in last.windows}
+            if self.trace_session:
+                self.trace_session.span(f"sandbox.exec.patch_attempt_{attempt}", inputs={"attempt": attempt, "files": record["files_changed"]}, outputs={"outcome": last.outcome.value})
+                self.trace_session.record_feedback("patch_attempt", score=1.0 if last.outcome is Outcome.STOPPED else 0.0, value=last.outcome.value, comment=f"attempt {attempt}")
             self._stage("rerun", "done", attempt=attempt, outcome=last.outcome.value)
             if last.outcome is Outcome.STOPPED:
                 patch.update(applied=True, diff=diff, files_changed=record["files_changed"])
@@ -194,6 +212,13 @@ def summarize(ev: dict[str, Any]) -> str:
     p = ev.get("patch", {})
     if p.get("attempted"):
         lines.append(f"Patch: {'applied to ' + ', '.join(p['files_changed']) if p.get('applied') else 'no attempt fixed the failure'}; same locked test re-run: {ev.get('same_test_verified')}")
+    integ = ev.get("integrations", {})
+    tav = integ.get("tavily", {})
+    ls = integ.get("langsmith", {})
+    if tav.get("queries_run"):
+        lines.append(f"Tavily grounding: {tav['queries_run']} lookup(s), {tav.get('snippets_injected', 0)} snippet(s) injected")
+    if ls.get("enabled"):
+        lines.append(f"LangSmith trace: project={ls.get('project')} run_id={ls.get('run_id') or '-'}" + (f" url={ls['trace_url']}" if ls.get("trace_url") else ""))
     if ev.get("error"):
         lines.append(f"ERROR at {ev['error']['stage']}: {ev['error']['message']}")
     v = ev.get("verdict", {})

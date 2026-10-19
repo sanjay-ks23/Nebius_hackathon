@@ -11,9 +11,9 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-from stopproof.model import ModelError, Nemotron  # noqa: E402
-from stopproof.orchestrator import Pipeline  # noqa: E402
-from stopproof.sandbox import Sandbox  # noqa: E402
+from stopproof.model import ModelError, Nemotron
+from stopproof.orchestrator import Pipeline
+from stopproof.sandbox import Sandbox
 
 DEMO = Path(__file__).resolve().parent.parent / "demo"
 
@@ -28,7 +28,7 @@ def sandbox():
     try:
         box = Sandbox()
         perms = box.client.whoami().permissions
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         pytest.skip(f"sandbox not reachable: {exc}")
     if not (perms.get("spawn_disposable") or perms.get("spawn")):
         pytest.skip("Sandbox token/project lacks spawn permission (Sandboxes is a Beta feature that must be enabled for the project)")

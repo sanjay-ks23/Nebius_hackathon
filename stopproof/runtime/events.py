@@ -7,9 +7,9 @@ This module is shipped into the sandbox, so it must stay stdlib-only.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
-from collections.abc import Callable
 
 CLOCK_START = 1000
 CLOCK_STEP = 100
@@ -52,27 +52,27 @@ class Event:
     @staticmethod
     def from_dict(raw: Any) -> Event:
         if not isinstance(raw, dict):
-            raise ValueError(f"event must be an object, got {type(raw).__name__}")
+            raise ValueError(f"event must be an object, got {type(raw).__name__}")  # noqa: TRY004
         name, ts = raw.get("event"), raw.get("ts")
         if name not in KNOWN_EVENTS:
             raise ValueError(f"unknown event {name!r}")
         if not isinstance(ts, int) or isinstance(ts, bool):
-            raise ValueError(f"event {name!r} has non-integer ts")
+            raise ValueError(f"event {name!r} has non-integer ts")  # noqa: TRY004
         action_id, data = raw.get("action_id"), raw.get("data", {})
         if action_id is not None and not isinstance(action_id, str):
             raise ValueError(f"event {name!r} has non-string action_id")
         if not isinstance(data, dict):
-            raise ValueError(f"event {name!r} has non-object data")
+            raise ValueError(f"event {name!r} has non-object data")  # noqa: TRY004
         return Event(name, ts, action_id, data)
 
 
 def parse_trace(raw: Any) -> tuple[str, list[Event]]:
     """Strictly parse {"run_id": ..., "events": [...]}; raises ValueError."""
     if not isinstance(raw, dict) or not isinstance(raw.get("run_id"), str):
-        raise ValueError("trace needs a string run_id")
+        raise ValueError("trace needs a string run_id")  # noqa: TRY004
     events = raw.get("events")
     if not isinstance(events, list):
-        raise ValueError("trace needs an events list")
+        raise ValueError("trace needs an events list")  # noqa: TRY004
     return raw["run_id"], [Event.from_dict(e) for e in events]
 
 

@@ -87,7 +87,9 @@ class Sandbox(Backend):
     label = "Nebius Token Factory Sandbox (microVM)"
 
     def __init__(self) -> None:
-        from contree_client.httpx import ContreeClient  # imported lazily: only needed for real runs
+        from contree_client.httpx import (
+            ContreeClient,  # imported lazily: only needed for real runs
+        )
 
         token = os.environ.get("NEBIUS_API_KEY")
         project = os.environ.get("NEBIUS_AI_PROJECT") or os.environ.get("CONTREE_PROJECT")
@@ -209,7 +211,7 @@ class BubblewrapSandbox(Backend):
             payload.write(bundle)
             payload.seek(0)
             try:
-                proc = subprocess.run(self._command(payload.fileno(), script, env), pass_fds=[payload.fileno()], capture_output=True, timeout=timeout)
+                proc = subprocess.run(self._command(payload.fileno(), script, env), pass_fds=[payload.fileno()], capture_output=True, timeout=timeout, check=False)
                 code, out, err = proc.returncode, proc.stdout, proc.stderr
             except subprocess.TimeoutExpired as exc:
                 code, out, err = 124, exc.stdout or b"", (exc.stderr or b"") + f"\ntimed out after {timeout}s".encode()

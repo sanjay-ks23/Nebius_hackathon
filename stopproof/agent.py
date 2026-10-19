@@ -55,7 +55,7 @@ class TestProposal(BaseModel):
     rationale: str = ""
 
 
-EDIT_BLOCK = re.compile(r"<<<<<<< SEARCH[ \t]+(?P<path>\S+)[ \t]*\r?\n(?P<old>.*?)\r?\n=======[ \t]*\r?\n(?P<new>.*?)\r?\n?>>>>>>> REPLACE", re.S)
+EDIT_BLOCK = re.compile(r"<<<<<<< SEARCH[ \t]+(?P<path>\S+)[ \t]*\r?\n(?P<old>.*?)\r?\n=======[ \t]*\r?\n(?P<new>.*?)\r?\n?>>>>>>> REPLACE", re.DOTALL)
 
 PATCH_FORMAT = """Reply with ONLY edit blocks (no JSON, no commentary). Each block replaces lines of one file:
 
@@ -206,6 +206,7 @@ def _unescape(code: str) -> str:
 
 def design_test(model: Nemotron, tools: Tools, found: dict[str, Any], feedback: str = "", attempt: int = 1) -> str:
     sources = {f: tools.original.files[f] for f in sorted({found[k]["file"] for k in ("workflow_entry", "handoff", "stop_control", "worker_entry")})}
+    grounding = intel.test_context(tools.scan_result, found)
     reply = model.ask(
         "generate_test", SYSTEM,
         f"Write the race test module for this repository.\n\n{HARNESS_API}\n\nExample for a different repo layout:\n{EXAMPLE_TEST}\n\n"
@@ -215,6 +216,7 @@ def design_test(model: Nemotron, tools: Tools, found: dict[str, Any], feedback: 
         f"stop_control={found['stop_control']['file']} :: {found['stop_control']['symbol']}; "
         f"worker_entry={found['worker_entry']['file']} :: {found['worker_entry']['symbol']}; handoff={found['handoff']['file']} :: {found['handoff']['symbol']}\n"
         f"Repository sources (verbatim):\n{_blocks(sources)}\n"
+        + (f"\n{grounding}" if grounding else "")
         + (f"\nAttempt {attempt}. Your previous test failed: {feedback}\nFix it." if feedback else ""),
         TestProposal,
         thinking=False,
@@ -240,7 +242,7 @@ def design_patch(model: Nemotron, tools: Tools, found: dict[str, Any], baseline:
         f"{PATCH_FORMAT}\n\n"
         f"Analysis: {json.dumps(found)}\nFailing windows: {json.dumps(failing)}\nPrimary-window events: {json.dumps(baseline['primary_events'])}\n"
         f"Sources (verbatim):\n{_blocks(sources)}\n"
-        + (intel.repair_context(feedback) if feedback else "")
+        + (intel.repair_context(feedback, found) if feedback else "")
         + (f"\nAttempt {attempt}. The previous attempt was rejected or did not fix it: {feedback}\n" if feedback else ""),
         max_tokens=20000,
     )

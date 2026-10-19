@@ -17,6 +17,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,55 @@ from .verifier import Outcome, aggregate, verify
 TASK = "Send Alice an email: the meeting is cancelled"
 CHILD_TIMEOUT_S = 45
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def selfcheck_main(repo: Path) -> None:
+    """Conventional unit checks for a demo repo's cancel() mechanism.
+
+    These checks verify the cancel flag and pre-work abort, without racing the
+    worker against STOP — they pass on every demo repo, including vulnerable_agent.
+    """
+    sys.path.insert(0, str(repo.resolve()))
+    from agent import Agent
+    from jobqueue import JobQueue
+    from provider import _provider
+    from stop import request_stop
+    from worker import Worker
+
+    def fresh() -> Any:
+        return JobQueue(Path(tempfile.mkdtemp()) / "queue.json")
+
+    def stop_is_acknowledged() -> bool:
+        ag = Agent("a1", fresh())
+        request_stop(ag)
+        return ag.cancelled is True
+
+    def stop_before_work_aborts() -> bool:
+        q = fresh()
+        ag = Agent("a1", q)
+        request_stop(ag)
+        ag.run(TASK)
+        Worker(q).run_until_empty()
+        return q.pending_count() == 0 and not _provider.outbox
+
+    def queued_work_drains() -> bool:
+        q = fresh()
+        Agent("a1", q).run(TASK)
+        Worker(q).run_until_empty()
+        return q.pending_count() == 0
+
+    checks = [
+        ("stop() is acknowledged", stop_is_acknowledged),
+        ("cancel before work aborts the task", stop_before_work_aborts),
+        ("queued work drains cleanly", queued_work_drains),
+    ]
+    results = []
+    for name, fn in checks:
+        try:
+            results.append({"name": name, "passed": bool(fn())})
+        except Exception as exc:  # noqa: BLE001 - a crashed check is a failed check
+            results.append({"name": name, "passed": False, "error": f"{type(exc).__name__}: {exc}"})
+    print("SELFCHECK " + json.dumps({"checks": results}))
 
 
 def _build(workdir: Path):

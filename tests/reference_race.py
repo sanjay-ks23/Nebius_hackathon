@@ -1,8 +1,9 @@
 from agent import Agent
 from jobqueue import JobQueue
 from stop import request_stop
-from stopproof.runtime.races import Scenario, main
 from worker import Worker
+
+from stopproof.runtime.races import Scenario, main
 
 
 def build(workdir):

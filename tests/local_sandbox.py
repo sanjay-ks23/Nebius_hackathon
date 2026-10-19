@@ -21,7 +21,7 @@ class LocalSandbox:
             Path(root, "bundle.tgz").write_bytes(bundle)
             full_env = {**os.environ, **env, "ROOT": root, "PATH": os.path.dirname(sys.executable) + os.pathsep + os.environ["PATH"]}
             full_env.pop("PYTHONPATH", None)
-            proc = subprocess.run(["bash", "-c", script], capture_output=True, text=True, env=full_env, cwd=root, timeout=timeout)
+            proc = subprocess.run(["bash", "-c", script], capture_output=True, text=True, env=full_env, cwd=root, timeout=timeout, check=False)
         self.executions.append(script)
         return {"backend": self.backend, "operation_id": f"local-{len(self.executions)}", "image": "local-double", "bundle_sha256": "n/a", "networking": "n/a",
                 "exit_code": proc.returncode, "stdout": proc.stdout, "stderr": proc.stderr}

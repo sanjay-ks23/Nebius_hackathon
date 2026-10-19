@@ -3,7 +3,7 @@ import copy
 import pytest
 
 from stopproof.runtime import events
-from stopproof.runtime.races import WINDOWS, PRIMARY_WINDOW
+from stopproof.runtime.races import PRIMARY_WINDOW, WINDOWS
 from stopproof.verifier import Outcome, verify
 
 

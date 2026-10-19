@@ -1,11 +1,20 @@
 """Contract test for stopproof.sandbox.Sandbox using contree_client's in-memory client (same interface as the real one)."""
 import base64
+import io
+import tarfile
 from types import SimpleNamespace
 
 import pytest
 from contree_client.exceptions import ContreeError
-from contree_client.models import (InstanceResult, InstanceResultState, InstanceSpawnResponse, OperationInstanceMetadata,
-                                   OperationResponse, OperationStatus, StreamRepr)
+from contree_client.models import (
+    InstanceResult,
+    InstanceResultState,
+    InstanceSpawnResponse,
+    OperationInstanceMetadata,
+    OperationResponse,
+    OperationStatus,
+    StreamRepr,
+)
 from contree_client.testing import ContreeClient
 
 from stopproof.sandbox import ROOT, Sandbox, SandboxUnavailable, build_bundle
@@ -52,8 +61,8 @@ def test_bundle_is_deterministic_and_contains_harness_repo_and_locked_test():
     test = lock_test("from a import A\nfrom stopproof.runtime.races import Scenario, main\ndef build(w):\n    return Scenario(A, A, A)\nmain(build)\n", {"a"})
     one, two = build_bundle({"a.py": "class A: ...\n"}, test), build_bundle({"a.py": "class A: ...\n"}, test)
     assert one == two
-    import io, tarfile
-    names = tarfile.open(fileobj=io.BytesIO(one)).getnames()
+    with tarfile.open(fileobj=io.BytesIO(one)) as tf:
+        names = tf.getnames()
     assert {"harness/stopproof/runtime/events.py", "harness/stopproof/runtime/races.py", "repo/a.py", "locked/race_test.py"} <= set(names)
 
 

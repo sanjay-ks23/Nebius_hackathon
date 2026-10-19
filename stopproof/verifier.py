@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass, field
 from enum import Enum
+from itertools import pairwise
 from typing import Any
 
 from .runtime.events import Event, parse_trace
@@ -58,7 +59,7 @@ def verify(trace: Any) -> Verdict:
         _, events = parse_trace(trace)
     except ValueError as exc:
         return _cannot(f"malformed trace: {exc}")
-    if any(b.ts <= a.ts for a, b in zip(events, events[1:])):
+    if any(b.ts <= a.ts for a, b in pairwise(events)):
         return _cannot("malformed trace: timestamps are not strictly increasing")
 
     stops = [e for e in events if e.event == "stop_requested"]

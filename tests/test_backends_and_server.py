@@ -12,7 +12,14 @@ from test_pipeline import REFERENCE, ScriptedModel
 
 from stopproof import cli, server
 from stopproof.orchestrator import Pipeline
-from stopproof.sandbox import BACKENDS, BubblewrapSandbox, SandboxUnavailable, backend_status, build_bundle, make_sandbox
+from stopproof.sandbox import (
+    BACKENDS,
+    BubblewrapSandbox,
+    SandboxUnavailable,
+    backend_status,
+    build_bundle,
+    make_sandbox,
+)
 from stopproof.tools import RACE_SCRIPT
 from stopproof.verifier import reverify_bundle
 
@@ -207,7 +214,7 @@ def test_a_run_started_from_the_api_produces_labelled_evidence(api, monkeypatch)
     monkeypatch.setattr(server, "Nemotron", lambda: ScriptedModel())
     state = wait_for(client, client.post("/api/runs", json={"repo": "fixed_agent", "backend": "local"}).json()["job"])
     assert state["status"] == "done" and state["evidence"]["verdict"]["outcome"] == "STOPPED" and state["backend"] == "local"
-    assert [s["stage"] for s in state["stages"]][0] == "analyze"
+    assert next(s["stage"] for s in state["stages"]) == "analyze"
     assert len(list(tmp_path.iterdir())) == 2
 
 
