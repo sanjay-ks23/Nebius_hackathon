@@ -6,100 +6,140 @@
 <title>StopProof — Cancellation Verification for AI Agents</title>
 <style>
   :root {
-    --bg: #0b0e14; --panel: #11151c; --raise: #161b22; --rule: #21262d; --rule2: #30363d;
-    --text: #e6edf3; --muted: #8b949e; --faint: #6e7681; --accent: #58a6ff;
-    --red: #f85149; --green: #3fb950; --amber: #d29922;
-    --red-bg: rgba(248, 81, 73, .10); --green-bg: rgba(63, 185, 80, .10); --amber-bg: rgba(210, 153, 34, .10);
-    --mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
-    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --bg: #080b11;
+    --panel: #0e131f;
+    --panel-hover: #131929;
+    --raise: #151b2b;
+    --rule: #1e2638;
+    --rule2: #2b364e;
+    --text: #f0f4fc;
+    --muted: #94a1b8;
+    --faint: #62718a;
+    --accent: #4c8dff;
+    --accent-bg: rgba(76, 141, 255, 0.12);
+    --red: #f85149;
+    --red-bg: rgba(248, 81, 73, 0.12);
+    --green: #3fb950;
+    --green-bg: rgba(63, 185, 80, 0.12);
+    --amber: #d29922;
+    --amber-bg: rgba(210, 153, 34, 0.12);
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
   * { box-sizing: border-box; }
-  html { color-scheme: dark; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+  html { color-scheme: dark; scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 13.5px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
   a { color: var(--accent); text-decoration: none; }
   a:hover { text-decoration: underline; }
   button, select, textarea, input { font: inherit; color: inherit; }
   code, pre, .mono { font-family: var(--mono); }
-  code { font-size: 12.5px; background: var(--raise); padding: 1px 5px; border: 1px solid var(--rule); border-radius: 4px; }
+  code { font-size: 12px; background: var(--raise); padding: 2px 6px; border: 1px solid var(--rule); border-radius: 4px; color: #dce5f5; }
   .hidden { display: none !important; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* top bar */
-  .top { display: flex; align-items: center; gap: 18px; min-height: 48px; padding: 8px 24px; border-bottom: 1px solid var(--rule); background: var(--panel); flex-wrap: wrap; }
-  .brand { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 14.5px; letter-spacing: -.01em; }
-  .brand i { width: 8px; height: 8px; border-radius: 2px; background: var(--accent); display: inline-block; }
-  .brand span { color: var(--faint); font-weight: 400; font-size: 12.5px; font-family: var(--mono); }
-  .services { margin-left: auto; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+  .top {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    min-height: 52px; padding: 0 28px;
+    border-bottom: 1px solid var(--rule);
+    background: rgba(14, 19, 31, 0.88); backdrop-filter: blur(12px);
+    flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; letter-spacing: -0.015em; }
+  .brand-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 5px;
+    background: var(--accent); color: #040812; font-weight: 800; font-size: 12px; font-family: var(--mono);
+  }
+  .brand-tag { color: var(--faint); font-weight: 400; font-size: 12px; font-family: var(--mono); padding-left: 4px; }
+  .services { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
   .svc { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); font-family: var(--mono); }
   .svc i { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
   .svc.ok { color: var(--text); } .svc.ok i { background: var(--green); }
   .svc.warn i { background: var(--amber); } .svc.bad i { background: var(--red); }
-  .top-actions { display: flex; gap: 14px; align-items: center; border-left: 1px solid var(--rule); padding-left: 16px; }
+  .top-actions { display: flex; gap: 14px; align-items: center; }
   .linkbtn { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font-size: 12.5px; }
   .linkbtn:hover { text-decoration: underline; }
 
-  /* contract header */
-  .hero { border-bottom: 1px solid var(--rule); padding: 22px 24px 20px; background: var(--bg); }
-  .hero-inner { max-width: 1480px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px; align-items: start; }
-  @media (max-width: 1080px) { .hero-inner { grid-template-columns: 1fr; } }
-  .hero h1 { margin: 0 0 8px; font-size: 22px; font-weight: 600; letter-spacing: -.015em; line-height: 1.25; }
-  .hero-sub { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--muted); max-width: 72ch; }
+  /* hero section */
+  .hero { border-bottom: 1px solid var(--rule); padding: 36px 28px 32px; background: var(--bg); }
+  .hero-inner { max-width: 1440px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 36px; align-items: start; }
+  @media (max-width: 1040px) { .hero-inner { grid-template-columns: 1fr; } }
+  .hero-tag {
+    display: inline-flex; align-items: center; gap: 7px;
+    font: 11.5px var(--mono); color: var(--accent); background: var(--accent-bg);
+    border: 1px solid rgba(76, 141, 255, 0.28); border-radius: 20px; padding: 3px 10px; margin-bottom: 12px;
+  }
+  .hero h1 { margin: 0 0 10px; font-size: 27px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.2; color: #fff; }
+  .hero-sub { margin: 0; font-size: 14px; line-height: 1.65; color: var(--muted); max-width: 68ch; }
   .hero-sub b { color: var(--text); font-weight: 600; }
-  .pipe { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 14px; padding: 6px 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--panel); font: 12px var(--mono); color: var(--muted); }
-  .pipe span { padding: 2px 8px; border: 1px solid var(--rule2); border-radius: 4px; background: var(--raise); color: var(--text); }
+  .pipe {
+    display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px;
+    margin-top: 18px; padding: 8px 12px; border: 1px solid var(--rule); border-radius: 6px;
+    background: var(--panel); font: 12px var(--mono); color: var(--muted);
+  }
+  .pipe span { padding: 3px 9px; border: 1px solid var(--rule2); border-radius: 4px; background: var(--raise); color: var(--text); }
   .pipe i { color: var(--faint); font-style: normal; }
-  .pipe .stop-mark { padding: 2px 8px; border: 1px solid var(--red); border-radius: 4px; background: var(--red-bg); color: var(--red); font-weight: 600; }
+  .pipe .stop-mark { padding: 3px 9px; border: 1px solid var(--red); border-radius: 4px; background: var(--red-bg); color: var(--red); font-weight: 600; }
   .pipe .sink { border-color: var(--accent); color: var(--accent); }
-  .outcomes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  @media (max-width: 720px) { .outcomes { grid-template-columns: 1fr; } }
-  .oc { padding: 10px 12px; border: 1px solid var(--rule); border-left-width: 3px; border-radius: 6px; background: var(--panel); }
-  .oc b { display: block; font: 600 12px var(--mono); margin-bottom: 4px; }
-  .oc span { display: block; font-size: 12px; color: var(--muted); line-height: 1.45; }
+
+  .outcomes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 680px) { .outcomes { grid-template-columns: 1fr; } }
+  .oc { padding: 14px 14px; border: 1px solid var(--rule); border-left-width: 3.5px; border-radius: 6px; background: var(--panel); }
+  .oc b { display: block; font: 700 12.5px var(--mono); margin-bottom: 5px; }
+  .oc span { display: block; font-size: 12px; color: var(--muted); line-height: 1.5; }
   .oc.ok { border-left-color: var(--green); } .oc.ok b { color: var(--green); }
   .oc.bad { border-left-color: var(--red); } .oc.bad b { color: var(--red); }
   .oc.warn { border-left-color: var(--amber); } .oc.warn b { color: var(--amber); }
 
-  /* workspace layout */
-  .layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 28px; max-width: 1520px; margin: 0 auto; padding: 22px 24px 48px; }
-  @media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } }
-  h2 { margin: 0 0 10px; padding-bottom: 7px; border-bottom: 1px solid var(--rule); font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; }
+  /* layout */
+  .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 32px; max-width: 1480px; margin: 0 auto; padding: 28px 28px 64px; }
+  @media (max-width: 1040px) { .layout { grid-template-columns: 1fr; } }
+  h2 { margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); font-size: 13.5px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; }
   h2 small { font-weight: 400; color: var(--faint); font-size: 12px; font-family: var(--mono); }
-  .side-card { padding: 14px 16px; border: 1px solid var(--rule); border-radius: 6px; background: var(--panel); margin-bottom: 16px; }
-  .main > section, #result > section { margin-bottom: 24px; }
+  .side-card { padding: 16px 18px; border: 1px solid var(--rule); border-radius: 7px; background: var(--panel); margin-bottom: 20px; }
+  .main > section, #result > section { margin-bottom: 26px; }
   .muted { color: var(--muted); } .faint { color: var(--faint); }
   .ok-text { color: var(--green); } .bad-text { color: var(--red); } .warn-text { color: var(--amber); }
 
-  /* controls */
-  label { display: block; margin: 12px 0 4px; font-size: 12px; color: var(--muted); }
+  /* forms & buttons */
+  label { display: block; margin: 12px 0 5px; font-size: 12px; color: var(--muted); font-weight: 500; }
   label:first-of-type { margin-top: 0; }
-  select, textarea, input { width: 100%; padding: 7px 10px; background: var(--raise); border: 1px solid var(--rule2); border-radius: 5px; font-size: 13px; }
+  select, textarea, input { width: 100%; padding: 8px 11px; background: var(--raise); border: 1px solid var(--rule2); border-radius: 5px; font-size: 13px; color: var(--text); }
   select:focus, input:focus, textarea:focus { border-color: var(--accent); outline: none; }
   select:disabled, option:disabled { color: var(--faint); }
-  button.primary { width: 100%; margin-top: 14px; padding: 8px 14px; border: 1px solid rgba(255,255,255,.08); border-radius: 5px; background: var(--accent); color: #06101e; font-weight: 600; font-size: 13px; cursor: pointer; }
-  button.primary:hover:not(:disabled) { filter: brightness(1.06); }
-  button.primary:disabled { opacity: .45; cursor: not-allowed; }
-  button.secondary { padding: 7px 12px; border: 1px solid var(--rule2); border-radius: 5px; background: var(--raise); color: var(--text); font-size: 13px; cursor: pointer; }
-  button.secondary:hover:not(:disabled) { border-color: var(--muted); }
-  button.secondary:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary {
+    width: 100%; margin-top: 14px; padding: 9px 14px; border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 5px; background: var(--accent); color: #040812; font-weight: 600; font-size: 13px; cursor: pointer;
+  }
+  button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+  button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  button.secondary {
+    padding: 7px 13px; border: 1px solid var(--rule2); border-radius: 5px;
+    background: var(--raise); color: var(--text); font-size: 12.5px; cursor: pointer;
+  }
+  button.secondary:hover:not(:disabled) { border-color: var(--muted); background: var(--panel-hover); }
+  button.secondary:disabled { opacity: 0.45; cursor: not-allowed; }
   .btn-inline { width: auto !important; margin-top: 0 !important; }
   .note { margin-top: 8px; font-size: 12px; color: var(--muted); line-height: 1.5; }
   .note details { margin-top: 6px; } .note summary { cursor: pointer; color: var(--accent); }
   .note ol { margin: 6px 0 0 18px; padding: 0; } .note li { margin-bottom: 4px; }
-  .alert { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--rule2); border-left: 3px solid var(--red); border-radius: 5px; background: var(--red-bg); font-size: 12.5px; }
+  .alert { margin-top: 12px; padding: 11px 13px; border: 1px solid var(--rule2); border-left: 3px solid var(--red); border-radius: 6px; background: var(--red-bg); font-size: 12.5px; }
   .alert.warn { border-left-color: var(--amber); background: var(--amber-bg); }
   .alert b { display: block; margin-bottom: 4px; }
   .alert p { margin: 6px 0 0; } .alert ol { margin: 8px 0 0 18px; padding: 0; } .alert li { margin-bottom: 4px; }
 
-  /* progress */
+  /* progress stepper */
   .steps { list-style: none; margin: 0; padding: 0; }
-  .steps li { display: grid; grid-template-columns: 18px 1fr; gap: 8px; padding: 4px 0; font-size: 13px; color: var(--faint); }
+  .steps li { display: grid; grid-template-columns: 18px 1fr; gap: 9px; padding: 5px 0; font-size: 13px; color: var(--faint); }
   .mk { width: 12px; height: 12px; margin-top: 4px; border-radius: 50%; border: 1.5px solid var(--faint); }
   .steps .done { color: var(--text); } .done .mk { background: var(--green); border-color: var(--green); }
   .steps .active { color: var(--text); } .active .mk { border-color: var(--accent); border-top-color: transparent; animation: spin .8s linear infinite; }
   .steps .error .mk { background: var(--red); border-color: var(--red); }
   .steps .retry { color: var(--text); } .retry .mk { border-color: var(--amber); }
   .steps .skipped .mk { border-style: dashed; }
-  .steps .sub { display: block; font: 11.5px var(--mono); color: var(--muted); word-break: break-all; }
+  .steps .sub { display: block; font: 11px var(--mono); color: var(--muted); word-break: break-all; margin-top: 1px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .active .mk { animation: none; } }
 
@@ -107,51 +147,51 @@
   dl.kv dt { color: var(--muted); } dl.kv dd { margin: 0; word-break: break-word; }
   .side dl.kv { grid-template-columns: 1fr auto; gap: 5px 10px; } .side dl.kv dd { text-align: right; font-family: var(--mono); font-size: 12px; }
 
-  /* live proof panel */
-  #live { border: 1px solid var(--rule2); border-radius: 6px; background: var(--panel); padding: 16px 20px; }
-  #live h2 { border: 0; padding-bottom: 0; margin-bottom: 4px; font-size: 14px; }
-  .live-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
-  .live-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+  /* live proof */
+  #live { border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); padding: 20px 22px; }
+  #live h2 { border: 0; padding-bottom: 0; margin-bottom: 6px; font-size: 15px; }
+  .live-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0 14px; }
+  .live-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 14px; }
   @media (max-width: 960px) { .live-cards { grid-template-columns: 1fr; } }
-  .live-card { border: 1px solid var(--rule2); border-left-width: 3px; border-radius: 5px; background: var(--bg); padding: 11px 13px; }
+  .live-card { border: 1px solid var(--rule2); border-left-width: 3.5px; border-radius: 6px; background: var(--bg); padding: 13px 15px; }
   .live-card.ok { border-left-color: var(--green); }
   .live-card.bad { border-left-color: var(--red); }
   .live-card.warn { border-left-color: var(--amber); }
   .live-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-  .live-card .o { font: 700 14px var(--mono); margin: 5px 0 3px; }
-  .live-wins { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
-  .live-win { font: 10.5px var(--mono); padding: 1px 6px; border-radius: 3px; border: 1px solid var(--rule2); color: var(--muted); }
-  .live-win.ok { border-color: rgba(63,185,80,.4); color: var(--green); }
+  .live-card .o { font: 700 15px var(--mono); margin: 6px 0 4px; }
+  .live-wins { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+  .live-win { font: 10.5px var(--mono); padding: 2px 6px; border-radius: 3px; border: 1px solid var(--rule2); color: var(--muted); }
+  .live-win.ok { border-color: rgba(63,185,80,.4); color: var(--green); background: var(--green-bg); }
   .live-win.bad { border-color: rgba(248,81,73,.4); color: var(--red); background: var(--red-bg); }
-  .live-win.warn { border-color: rgba(210,153,34,.4); color: var(--amber); }
-  #live-inbox-box { margin-top: 12px; }
-  #live-inbox td { font: 12px var(--mono); padding: 6px 10px; }
+  .live-win.warn { border-color: rgba(210,153,34,.4); color: var(--amber); background: var(--amber-bg); }
+  #live-inbox-box { margin-top: 14px; }
+  #live-inbox td { font: 12px var(--mono); padding: 7px 12px; }
   #live-inbox .when { width: 88px; color: var(--faint); }
-  #live-inbox .kind { width: 110px; }
+  #live-inbox .kind { width: 116px; }
   #live-inbox tr.sent td { background: var(--red-bg); }
 
-  /* verdict card */
-  .verdict { padding: 16px 20px; border: 1px solid var(--rule2); border-left-width: 4px; border-radius: 6px; background: var(--panel); }
+  /* verdict banner */
+  .verdict { padding: 18px 22px; border: 1px solid var(--rule2); border-left-width: 4px; border-radius: 7px; background: var(--panel); }
   .verdict.ok { border-left-color: var(--green); } .verdict.bad { border-left-color: var(--red); } .verdict.warn { border-left-color: var(--amber); }
   .verdict-top { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 10px; }
   .verdict .lab { font: 11.5px var(--mono); color: var(--muted); }
-  .verdict .big { margin: 2px 0 4px; font: 700 26px var(--mono); letter-spacing: .2px; }
+  .verdict .big { margin: 3px 0 4px; font: 700 26px var(--mono); letter-spacing: 0.2px; }
   .verdict.ok .big { color: var(--green); } .verdict.bad .big { color: var(--red); } .verdict.warn .big { color: var(--amber); }
   .transition-badge { padding: 3px 9px; border-radius: 4px; border: 1px solid var(--rule2); background: var(--raise); font: 12px var(--mono); }
-  .plain { margin: 6px 0 0; font-size: 14px; line-height: 1.55; color: var(--text); max-width: 92ch; }
-  .story { list-style: none; margin: 12px 0 0; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 5px; background: var(--bg); display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .plain { margin: 6px 0 0; font-size: 14px; line-height: 1.6; color: var(--text); max-width: 95ch; }
+  .story { list-style: none; margin: 14px 0 0; padding: 11px 14px; border: 1px solid var(--rule); border-radius: 5px; background: var(--bg); display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
   @media (max-width: 900px) { .story { grid-template-columns: 1fr; } }
   .story li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; align-items: baseline; color: var(--muted); font-size: 12.5px; }
   .story li b { font: 700 11.5px var(--mono); color: var(--accent); }
   .story li.s { color: var(--text); }
-  .integ-bar { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: baseline; font-size: 12.5px; color: var(--muted); }
+  .integ-bar { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: baseline; font-size: 12.5px; color: var(--muted); }
   .integ-item b { color: var(--text); font-weight: 600; }
-  .facts { display: flex; flex-wrap: wrap; gap: 10px 28px; margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--rule); }
+  .facts { display: flex; flex-wrap: wrap; gap: 10px 30px; margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--rule); }
   .facts dt { font-size: 11px; color: var(--faint); font-family: var(--mono); } .facts dd { margin: 0; font-size: 12.5px; }
 
   /* tabs + windows */
   .tabs { display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--rule); }
-  .tab { padding: 7px 12px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); font-size: 13px; cursor: pointer; }
+  .tab { padding: 8px 14px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); font-size: 13px; cursor: pointer; }
   .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
   .tab .o { margin-left: 8px; font: 11.5px var(--mono); }
   .winbar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
@@ -164,8 +204,8 @@
   /* tables & timeline */
   .box { border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; background: var(--panel); }
   table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  th { padding: 7px 12px; text-align: left; font: 500 11.5px var(--mono); color: var(--faint); border-bottom: 1px solid var(--rule); background: var(--raise); }
-  td { padding: 7px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { padding: 8px 12px; text-align: left; font: 600 11.5px var(--mono); color: var(--faint); border-bottom: 1px solid var(--rule); background: var(--raise); }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
   tr:last-child td { border-bottom: 0; }
   .tl .t { width: 46px; font-family: var(--mono); color: var(--faint); }
   .tl .actor { width: 84px; color: var(--muted); font-family: var(--mono); }
@@ -176,42 +216,46 @@
   .tl tr.stop td { background: var(--red-bg); color: var(--red); font-weight: 600; border-top: 1px solid var(--red); border-bottom: 1px solid var(--red); }
   .tl tr.late td { background: var(--red-bg); font-weight: 600; } .tl tr.late td:first-child { box-shadow: inset 3px 0 var(--red); }
   .tl tr.blocked td { background: var(--green-bg); } .tl tr.blocked td:first-child { box-shadow: inset 3px 0 var(--green); }
-  .tag { padding: 0 5px; border-radius: 3px; background: var(--raise); border: 1px solid var(--rule2); color: var(--muted); font: 11.5px var(--mono); }
+  .tag { padding: 1px 5px; border-radius: 3px; background: var(--raise); border: 1px solid var(--rule2); color: var(--muted); font: 11px var(--mono); }
   .dim { margin-left: 6px; color: var(--faint); font: 11.5px var(--mono); }
   .flag { margin-left: 8px; padding: 1px 6px; border-radius: 3px; font: 600 11px var(--mono); }
-  .flag.bad { color: var(--red); background: rgba(248, 81, 73, .16); } .flag.ok { color: var(--green); background: rgba(63, 185, 80, .16); }
+  .flag.bad { color: var(--red); background: rgba(248, 81, 73, 0.16); } .flag.ok { color: var(--green); background: rgba(63, 185, 80, 0.16); }
   ul.checks { list-style: none; margin: 10px 0 0; padding: 0; font-size: 12.5px; }
   ul.checks li { display: grid; grid-template-columns: 18px 1fr; gap: 6px; padding: 2px 0; color: var(--muted); }
   ul.checks .y { color: var(--green); } ul.checks .n { color: var(--red); }
 
   .chip { font: 600 11.5px var(--mono); } .chip.ok { color: var(--green); } .chip.bad { color: var(--red); } .chip.warn { color: var(--amber); }
-  tr.click { cursor: pointer; } tr.click:hover td { background: var(--raise); }
+  tr.click { cursor: pointer; } tr.click:hover td { background: var(--panel-hover); }
   .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; } @media (max-width: 1200px) { .cols { grid-template-columns: 1fr; } }
 
   details.lab { margin-top: 12px; } details.lab summary, .main details > summary { cursor: pointer; color: var(--accent); font-size: 12.5px; }
   textarea { min-height: 200px; margin: 8px 0; font: 12px/1.5 var(--mono); resize: vertical; }
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  pre.code { margin: 8px 0 0; padding: 12px 14px; max-height: 320px; overflow: auto; border: 1px solid var(--rule); border-radius: 6px; background: #080a0f; font-size: 12px; line-height: 1.55; }
-  .diff { margin-top: 10px; padding: 8px 0; max-height: 400px; overflow: auto; border: 1px solid var(--rule); border-radius: 6px; background: #080a0f; font: 12px/1.55 var(--mono); white-space: pre; }
-  .diff div { padding: 0 14px; } .diff .add { background: rgba(63, 185, 80, .12); color: #7ee787; } .diff .del { background: rgba(248, 81, 73, .12); color: #ffa198; }
+  pre.code { margin: 8px 0 0; padding: 12px 14px; max-height: 320px; overflow: auto; border: 1px solid var(--rule); border-radius: 6px; background: #05070c; font-size: 12px; line-height: 1.55; }
+  .diff { margin-top: 10px; padding: 8px 0; max-height: 400px; overflow: auto; border: 1px solid var(--rule); border-radius: 6px; background: #05070c; font: 12px/1.55 var(--mono); white-space: pre; }
+  .diff div { padding: 0 14px; } .diff .add { background: rgba(63, 185, 80, 0.12); color: #7ee787; } .diff .del { background: rgba(248, 81, 73, 0.12); color: #ffa198; }
   .diff .hunk { color: var(--accent); } .diff .file { color: var(--text); font-weight: 600; }
 
   /* guide */
-  #guide { border: 1px solid var(--rule); border-radius: 6px; background: var(--panel); padding: 16px 20px; }
+  #guide { border: 1px solid var(--rule); border-radius: 7px; background: var(--panel); padding: 18px 22px; }
   ol.guide { counter-reset: g; margin: 0; padding: 0; list-style: none; }
-  ol.guide li { counter-increment: g; display: grid; grid-template-columns: 30px 1fr; padding: 10px 0; border-bottom: 1px solid var(--rule); font-size: 13px; }
-  ol.guide li::before { content: counter(g); font: 600 12px var(--mono); color: var(--accent); }
+  ol.guide li { counter-increment: g; display: grid; grid-template-columns: 30px 1fr; padding: 11px 0; border-bottom: 1px solid var(--rule); font-size: 13px; }
+  ol.guide li::before { content: counter(g); font: 700 12px var(--mono); color: var(--accent); }
   ol.guide b { display: block; margin-bottom: 2px; } ol.guide span { color: var(--muted); }
   .expect { margin: 14px 0 0; max-width: 620px; }
 
-  /* simple vs technical view */
+  /* simple vs technical toggle */
   body.simple .tech { display: none !important; }
 </style>
 </head>
 <body class="simple">
 
 <header class="top">
-  <div class="brand"><i></i><b>StopProof</b><span>cancellation verification</span></div>
+  <div class="brand">
+    <span class="brand-badge">&times;</span>
+    <span>StopProof</span>
+    <span class="brand-tag">cancellation verification</span>
+  </div>
   <div class="services" id="services"></div>
   <div class="top-actions">
     <button class="linkbtn" id="view-toggle">Technical details</button>
@@ -223,16 +267,26 @@
 <section class="hero">
   <div class="hero-inner">
     <div>
+      <div class="hero-tag"><span>Autonomous Agent Safety</span> &middot; <span>Nebius &times; NVIDIA</span></div>
       <h1>Prove your AI agent actually stopped.</h1>
-      <p class="hero-sub">Cancelling an agent often stops the top-level loop while queued downstream workers keep running and fire irreversible side effects. StopProof maps the repository, generates a sha256-locked race test across six STOP interleavings inside an isolated <b>Nebius microVM</b>, proposes a minimal repair with <b>Nemotron</b>, and decides the verdict with a <b>deterministic verifier</b> — never the model.</p>
+      <p class="hero-sub">When an AI agent is cancelled, top-level loops report <code>OK</code> — yet asynchronous workers often keep draining job queues and fire irreversible side effects like sending unauthorized emails or charging accounts. StopProof maps the repository, locks a deterministic race test inside isolated <b>Nebius microVMs</b>, repairs the worker with <b>Nemotron</b>, and computes mathematical proof with a <b>deterministic verifier</b> — never the model.</p>
       <div class="pipe">
-        <span>agent</span><i>→</i><span>queue</span><b class="stop-mark">✕ STOP</b><i>→</i><span>worker</span><i>→</i><span class="sink">provider (protected sink)</span>
+        <span>agent</span><i>&rarr;</i><span>queue</span><b class="stop-mark">&times; STOP injected</b><i>&rarr;</i><span>worker</span><i>&rarr;</i><span class="sink">provider (protected sink)</span>
       </div>
     </div>
     <div class="outcomes">
-      <div class="oc ok"><b>STOPPED</b><span>No protected side effect after STOP across all six race windows, with every queued action accounted for.</span></div>
-      <div class="oc bad"><b>STILL ABLE TO ACT</b><span>A protected side effect fired after STOP was requested — cancellation failed to propagate downstream.</span></div>
-      <div class="oc warn"><b>CANNOT ESTABLISH</b><span>Telemetry is missing, malformed, or incomplete. Missing evidence is never reported as safe.</span></div>
+      <div class="oc ok">
+        <b>STOPPED</b>
+        <span>Worker provably refused the job before the side effect across all six race windows. 100% verified.</span>
+      </div>
+      <div class="oc bad">
+        <b>STILL ABLE TO ACT</b>
+        <span>Worker executed the protected side effect after cancellation was requested. Defect proven.</span>
+      </div>
+      <div class="oc warn">
+        <b>CANNOT ESTABLISH</b>
+        <span>Worker emitted insufficient or malformed telemetry. Missing evidence is never assumed safe.</span>
+      </div>
     </div>
   </div>
 </section>
@@ -240,7 +294,7 @@
 <div class="layout">
   <aside class="side">
     <div class="side-card">
-      <h2>Sandbox verification &amp; repair</h2>
+      <h2>Verification &amp; repair studio</h2>
       <label for="repo">Target repository</label>
       <select id="repo"></select>
       <label for="backend">Execution backend</label>
@@ -266,13 +320,13 @@
 
   <div class="main">
     <section id="live">
-      <h2>See it happen for real <small>host race runner + real outbound HTTP sink</small></h2>
-      <p class="desc">Conventional unit tests pass on all three repositories (<code>3/3 pass</code>) — yet when STOP races the worker, the vulnerable agent still fires real outbound deliveries after cancellation. Watch deliveries land in the inbox below or open the live inbox URL on a phone.</p>
+      <h2>Live proof &amp; real-world sink <small>host race runner + self-hosted outbound delivery</small></h2>
+      <p class="desc">Conventional unit tests pass on all three repositories (<code>3/3 pass</code>) — yet when STOP races the background worker, the vulnerable agent still fires real outbound deliveries after cancellation. Compare all three agents side-by-side or watch deliveries stream live to our public phone inbox.</p>
       <div class="live-actions">
         <button class="primary btn-inline" id="live-run-all" data-label="Compare all 3 agents">Compare all 3 agents</button>
-        <button class="secondary" id="live-run-fail" data-label="Run the failing agent">Run the failing agent</button>
-        <button class="secondary" id="live-run-ok" data-label="Run the working agent">Run the working agent</button>
-        <button class="secondary" id="live-run-opaque" data-label="Run inconclusive agent (no telemetry)">Run inconclusive agent (no telemetry)</button>
+        <button class="secondary" id="live-run-fail" data-label="Run failing agent">Run failing agent</button>
+        <button class="secondary" id="live-run-ok" data-label="Run working agent">Run working agent</button>
+        <button class="secondary" id="live-run-opaque" data-label="Run inconclusive agent">Run inconclusive agent</button>
       </div>
       <div class="note" id="live-topic"></div>
       <div class="live-cards" id="live-results"></div>
@@ -282,14 +336,14 @@
     <section id="guide" class="hidden">
       <h2>How to verify it yourself</h2>
       <ol class="guide">
-        <li><div><b>Compare live behavior first.</b><span>Press <em>Compare all 3 agents</em> above. All three pass their own unit test suite (<code>3/3 pass</code>), yet <code>vulnerable_agent</code> delivers 4 outbound emails after STOP while <code>fixed_agent</code> blocks them and <code>opaque_agent</code> is flagged <code>CANNOT ESTABLISH</code>.</span></div></li>
-        <li><div><b>Run sandboxed verification + auto-repair.</b><span>Select <code>vulnerable_agent</code> in the left sidebar and press <em>Run verification</em>. Nemotron maps the handoff, locks a race test by sha256, reproduces the bug in a Nebius microVM, patches the worker/queue, and re-runs the identical locked test.</span></div></li>
+        <li><div><b>Compare live behavior first.</b><span>Press <em>Compare all 3 agents</em> above. All three pass their own conventional unit test suite (<code>3/3 pass</code>), yet <code>vulnerable_agent</code> delivers 4 outbound emails after STOP while <code>fixed_agent</code> blocks them and <code>opaque_agent</code> is flagged <code>CANNOT ESTABLISH</code>.</span></div></li>
+        <li><div><b>Run sandboxed verification &amp; auto-repair.</b><span>Select <code>vulnerable_agent</code> in the left sidebar and press <em>Run verification</em>. Nemotron maps the handoff, locks a race test by sha256, reproduces the bug in a Nebius microVM, patches the worker/queue, and re-runs the identical locked test.</span></div></li>
         <li><div><b>Inspect the timeline and diff.</b><span>Switch between <em>Baseline</em> and <em>After patch</em> tabs to see the exact event ordering relative to the red <code>STOP requested</code> boundary and the unified diff applied to the worker.</span></div></li>
         <li><div><b>Recompute every verdict from raw events.</b><span>Press <em>Re-run integrity checks</em> under Evidence (or run <code>python -m stopproof verify-bundle runs/&lt;run_id&gt;</code>) to recompute all 18 window verdicts and sha256 hashes independently.</span></div></li>
         <li><div><b>Try to fool the verifier.</b><span>Switch to <em>Technical details</em>, open <em>Edit this trace and re-verify</em>, and delete a <code>worker_blocked</code> event: the verifier immediately returns <code>CANNOT ESTABLISH</code>.</span></div></li>
       </ol>
       <table class="expect">
-        <tr><th>Repository</th><th>Own unit tests</th><th>Baseline verdict</th><th>After Nemotron patch</th></tr>
+        <tr><th>Repository</th><th>Own unit tests</th><th>Baseline race verdict</th><th>After Nemotron patch</th></tr>
         <tr><td class="mono">vulnerable_agent</td><td class="chip ok">3/3 pass</td><td class="chip bad">STILL ABLE TO ACT</td><td class="chip ok">STOPPED</td></tr>
         <tr><td class="mono">fixed_agent</td><td class="chip ok">3/3 pass</td><td class="chip ok">STOPPED</td><td class="faint">no patch needed</td></tr>
         <tr><td class="mono">opaque_agent</td><td class="chip ok">3/3 pass</td><td class="chip warn">CANNOT ESTABLISH</td><td class="faint">not repaired (missing telemetry)</td></tr>
@@ -540,8 +594,8 @@ function renderIntegrations(e) {
   const ig = e.integrations || {}, ls = ig.langsmith || {}, tv = ig.tavily || {};
   const parts = [];
   if (ls.enabled) {
-    const link = ls.trace_url ? ` · <a href="${esc(ls.trace_url)}" target="_blank" rel="noopener">Open shared trace ↗</a>` : "";
-    const fb = (ls.feedback || []).length ? ` · verifier feedback scored (${ls.feedback.length})` : "";
+    const link = ls.trace_url ? ` &middot; <a href="${esc(ls.trace_url)}" target="_blank" rel="noopener">Open shared trace &nearr;</a>` : "";
+    const fb = (ls.feedback || []).length ? ` &middot; verifier feedback scored (${ls.feedback.length})` : "";
     parts.push(`<span class="integ-item"><b>LangSmith:</b> project <code>${esc(ls.project || "stopproof")}</code> (${(ls.spans || []).length} tool spans${fb})${link}</span>`);
   }
   if (tv.queries_run) {
@@ -675,7 +729,7 @@ async function runIntegrity(runId) {
     state.integrity = r;
     const nothing = r.total === 0;
     if (slot()) { slot().className = nothing ? "muted" : r.ok ? "ok-text" : "bad-text"; slot().textContent = nothing ? "nothing to recompute (the run never reached execution)" : `${r.passed} of ${r.total} pass (recomputed)`; }
-    $("integrity-summary").textContent = nothing ? "No integrity checks: the run never reached execution" : `${r.passed} of ${r.total} integrity checks pass (every verdict recomputed from the raw events)`;
+    $("integrity-summary").textContent = nothing ? "No integrity checks: the run never reached execution" : `${r.passed} of ${r.total} integrity checks pass (every verdict recomputed from raw events)`;
     $("integrity-details").open = !nothing && !r.ok;
     $("integrity-list").innerHTML = r.checks.map((c) => `<li><span class="${c.passed ? "y" : "n"}">${c.passed ? "\u2713" : "\u2715"}</span><span>${esc(c.name)}${c.passed ? "" : ` [${esc(c.detail)}]`}</span></li>`).join("");
   } catch (_) {
@@ -693,7 +747,7 @@ async function verifyTrace() {
   if (v.error) { out.innerHTML = `<span class="bad-text">${esc(v.error)}</span>`; return; }
   const lines = v.late_effects.length ? v.late_effects.map((l) => `<li><span class="n">\u2715</span><span>${esc(l.event)} at ts ${l.ts}, after STOP at ts ${v.stop_ts}</span></li>`)
     : v.checks.map((c) => `<li><span class="${c.passed ? "y" : "n"}">${c.passed ? "\u2713" : "\u2715"}</span><span>${esc(c.name.replace(/_/g, " "))}: ${esc(c.detail)}</span></li>`);
-  out.innerHTML = `<div><span class="chip ${tone(v.outcome)}">${esc(v.outcome)}</span> <span class="muted">${esc(v.reason)}</span></div><ul class="checks">${lines.join("")}</ul>`;
+  out.innerHTML = `<div><span class="chip ${tone(v.outcome)}" style="font-size:14px">${esc(v.outcome)}</span> <span class="muted">${esc(v.reason)}</span></div><ul class="checks">${lines.join("")}</ul>`;
 }
 
 /* ---------- running ---------- */
@@ -738,7 +792,7 @@ async function escalateRun(runId) {
     const r = await api("/api/escalate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ run_id: runId }) });
     if (r.error) { out.textContent = r.error; btn.disabled = false; return; }
     const link = r.task_url || (r.result && r.result.task_url);
-    out.innerHTML = link ? ` — <a href="${esc(link)}" target="_blank" rel="noopener">task submitted: track it here</a>` : " — task submitted (see Tendem dashboard)";
+    out.innerHTML = link ? ` &mdash; <a href="${esc(link)}" target="_blank" rel="noopener">task submitted: track it here</a>` : " &mdash; task submitted (see Tendem dashboard)";
   } catch (err) {
     out.textContent = `escalation failed: ${err.message}`;
     btn.disabled = false;

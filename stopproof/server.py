@@ -41,7 +41,38 @@ LIVE_RATE = (int(os.environ.get("STOPPROOF_LIVE_RATE", "30")), 60)  # max live d
 MAX_RUNNING = int(os.environ.get("STOPPROOF_MAX_RUNNING", "8"))  # global cap on in-flight jobs
 
 
+def start_keep_alive() -> None:
+    """Automated keep-alive self-ping for free hosting platforms (e.g. Render).
+
+    Render sets RENDER_EXTERNAL_URL automatically (or set STOPPROOF_KEEP_ALIVE_URL).
+    Pings the health endpoint every 9 minutes so the container NEVER sleeps or cold-starts
+    during judging.
+    """
+    raw = os.environ.get("RENDER_EXTERNAL_URL") or os.environ.get("STOPPROOF_KEEP_ALIVE_URL")
+    if not raw:
+        return
+    url = raw.rstrip("/") + "/api/health"
+    interval = int(os.environ.get("STOPPROOF_KEEP_ALIVE_INTERVAL", "540"))  # 9 minutes (Render sleeps at 15m)
+
+    def loop() -> None:
+        log.info("keep_alive_started target=%s interval=%ss", url, interval)
+        time.sleep(45)  # initial warmup wait
+        while True:
+            try:
+                import urllib.request
+                req = urllib.request.Request(url, headers={"User-Agent": "StopProof-KeepAlive"})
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    resp.read()
+                log.debug("keep_alive_ping_ok")
+            except Exception as exc:  # noqa: BLE001
+                log.debug("keep_alive_ping_failed: %s", exc)
+            time.sleep(interval)
+
+    threading.Thread(target=loop, daemon=True, name="stopproof-keepalive").start()
+
+
 def create_app(runs_dir: Path) -> Starlette:
+    start_keep_alive()
     jobs: dict[str, dict[str, Any]] = {}
     inboxes: dict[str, list[dict[str, Any]]] = {}
     buckets: dict[str, list[float]] = {}

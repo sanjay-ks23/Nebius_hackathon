@@ -1,0 +1,17 @@
+name: Keep Alive Ping
+
+on:
+  schedule:
+    # Run every 10 minutes to prevent Render free instance sleep
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping StopProof Web Service
+        run: |
+          URL="${{ secrets.RENDER_APP_URL || 'https://stopproof.onrender.com' }}"
+          echo "Pinging $URL/api/health..."
+          curl -fsS -m 20 "$URL/api/health" || echo "Ping failed or URL not set yet"
