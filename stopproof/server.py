@@ -210,7 +210,7 @@ def create_app(runs_dir: Path) -> Starlette:
         try:
             inboxes[topic]["msgs"].append({
                 "time": time.time(), "title": "StopProof",
-                "message": "live proof starting — sends the agent performs will appear here",
+                "message": "live proof starting: outbound sends performed by the agent will appear here",
             })
             for repo in targets:
                 job["stages"].append({"stage": "live", "status": "running", "repo": repo.name})
@@ -308,18 +308,19 @@ def create_app(runs_dir: Path) -> Starlette:
             out.append(m)
         return JSONResponse({"messages": out})
 
-    LIVE_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>StopProof — Live Outbound Inbox</title>
-<style>body{margin:0;background:#0b0e14;color:#e6edf3;font:14px/1.55 system-ui,-apple-system,sans-serif;padding:20px;max-width:760px;margin-inline:auto}
-header{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid #21262d;padding-bottom:10px;margin-bottom:14px}
-h1{font-size:16px;margin:0}small{color:#7d8590;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
-.box{border:1px solid #21262d;border-radius:6px;background:#11151c;overflow:hidden}
-.m{display:flex;gap:10px;align-items:baseline;border-bottom:1px solid #21262d;padding:10px 14px;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace}
+    LIVE_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>StopProof // Live Outbound Inbox</title>
+<style>body{margin:0;background:#07090d;color:#e6edf3;font:13.5px/1.55 ui-monospace,"SF Mono",Menlo,Consolas,monospace;padding:20px;max-width:780px;margin-inline:auto}
+header{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid #1f2633;padding-bottom:10px;margin-bottom:14px}
+h1{font-size:15px;margin:0;letter-spacing:.02em}small{color:#7d8590;font-size:12px}
+p{color:#8b949e;margin:0 0 14px;text-align:justify}
+.box{border:1px solid #1f2633;background:#0c1017;overflow:hidden}
+.m{display:flex;gap:10px;align-items:baseline;border-bottom:1px solid #1f2633;padding:10px 14px;font-size:12.5px}
 .m:last-child{border-bottom:0}.m.sent{background:rgba(248,81,73,.09);border-left:3px solid #f85149}
-.t{color:#7d8590;font-size:11.5px;flex:0 0 74px}.b{padding:1px 6px;border-radius:3px;font-size:11px;font-weight:600;background:#21262d;color:#8b949e}
+.t{color:#7d8590;font-size:11.5px;flex:0 0 78px}.b{padding:1px 6px;font-size:11px;font-weight:600;background:#1f2633;color:#8b949e}
 .m.sent .b{background:rgba(248,81,73,.18);color:#ff7b72}</style></head><body>
-<header><h1>StopProof live outbound inbox</h1><small id="st">polling…</small></header>
-<p style="color:#8b949e;margin:0 0 14px">Every real outbound send performed by the agent during the race test lands here in real time.</p>
-<div class="box" id="inbox"><div class="m" style="color:#7d8590">waiting for outbound deliveries…</div></div>
+<header><h1>[STOPPROOF // LIVE OUTBOUND INBOX]</h1><small id="st">polling...</small></header>
+<p>Every real outbound send performed by the agent during the race test is delivered to this endpoint in real time.</p>
+<div class="box" id="inbox"><div class="m" style="color:#7d8590">waiting for outbound deliveries...</div></div>
 <script>
 const t = location.pathname.split("/").pop(), box = document.getElementById("inbox"), st = document.getElementById("st");
 async function poll(){ try{ const r = await fetch("/api/live/"+encodeURIComponent(t)+"/messages"); const d = await r.json();
@@ -329,7 +330,7 @@ async function poll(){ try{ const r = await fetch("/api/live/"+encodeURIComponen
     const ts=document.createElement("span"); ts.className="t"; ts.textContent=new Date(m.time*1000).toLocaleTimeString();
     const bd=document.createElement("span"); bd.className="b"; bd.textContent=sent?"OUTBOUND SEND":"SYSTEM";
     const tx=document.createElement("span"); tx.textContent=m.message;
-    row.append(ts,bd,tx); box.appendChild(row);} } }catch(e){ st.textContent="reconnecting…"; }
+    row.append(ts,bd,tx); box.appendChild(row);} } }catch(e){ st.textContent="reconnecting..."; }
   setTimeout(poll,1500);} poll();
 </script></body></html>"""
 
