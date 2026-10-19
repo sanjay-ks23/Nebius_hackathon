@@ -9,3 +9,6 @@ runs/
 .env.*
 !.env.example
 _scratch/
+
+video/media/
+devpost/

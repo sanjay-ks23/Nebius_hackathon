@@ -7,3 +7,5 @@ _scratch/
 tests/
 __pycache__/
 *.pyc
+video/
+devpost/

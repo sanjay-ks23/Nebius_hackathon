@@ -17,7 +17,8 @@ from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import FileResponse, HTMLResponse, JSONResponse, Response
-from starlette.routing import Route
+from starlette.routing import Mount, Route
+from starlette.staticfiles import StaticFiles
 
 from . import benchmark, escalation, intel, livedemo
 from .model import ModelError, Nemotron, _want_tracing
@@ -28,6 +29,7 @@ from .verifier import reverify_bundle, verify
 log = logging.getLogger("stopproof.server")
 MAX_TRACE_BYTES = 1_000_000
 UI = Path(__file__).parent / "ui" / "index.html"
+ASSETS = Path(__file__).parent / "ui" / "assets"
 DEMO_DIR = Path("demo")
 RUN_ID = re.compile(r"^[A-Za-z0-9_-]+$")
 NTFY_TOPIC = re.compile(r"^[A-Za-z0-9_-]{4,64}$")
@@ -365,4 +367,5 @@ async function poll(){ try{ const r = await fetch("/api/live/"+encodeURIComponen
         Route("/api/live-demo", start_live, methods=["POST"]), Route("/api/live/{topic}/messages", live_messages),
         Route("/api/live/{topic}/deliver", live_deliver, methods=["POST"]), Route("/live/{topic}", live_page),
         Route("/api/escalate", escalate, methods=["POST"]),
+        Mount("/assets", StaticFiles(directory=ASSETS, check_dir=False), name="assets"),
     ])

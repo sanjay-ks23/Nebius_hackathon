@@ -705,6 +705,20 @@
   .expect { margin: 14px 0 0; }
 
   body.simple .tech { display: none !important; }
+
+  /* [00] walkthrough video */
+  .walk { display: grid; gap: 14px; justify-items: center; }
+  .video-wrap { width: 100%; max-width: 1040px; border: 1px solid var(--rule2); background: #ffffff; line-height: 0; }
+  .flow-video { width: 100%; aspect-ratio: 16 / 9; display: block; background: #ffffff; }
+  .chapters { width: 100%; max-width: 1040px; display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin: 0; padding: 0; list-style: none; }
+  @media (max-width: 860px) { .chapters { grid-template-columns: repeat(2, 1fr); } }
+  .chapters button {
+    width: 100%; height: 100%; text-align: left; padding: 8px 10px;
+    border: 1px solid var(--rule); background: var(--bg); color: var(--muted);
+    font: 11.5px/1.35 var(--mono); cursor: pointer;
+  }
+  .chapters button b { display: block; color: var(--accent); font-weight: 700; margin-bottom: 2px; }
+  .chapters button:hover, .chapters button[aria-current="true"] { border-color: var(--accent); color: var(--text); background: var(--accent-bg); }
 </style>
 </head>
 <body class="simple">
@@ -723,6 +737,20 @@
 </header>
 
 <main class="shell">
+
+  <!-- [00] WALKTHROUGH VIDEO -->
+  <section class="frame" id="walkthrough">
+    <div class="frame-head">
+      <div class="frame-title"><span class="frame-idx">[00]</span><span>HOW STOPPROOF WORKS</span></div>
+      <div class="frame-meta">60 SECOND WALKTHROUGH // PROBLEM TO PROOF</div>
+    </div>
+    <div class="frame-body walk">
+      <div class="video-wrap">
+        <video id="flow-video" class="flow-video" src="/assets/stopproof-flow.mp4" poster="/assets/stopproof-flow.jpg" muted loop autoplay playsinline controls preload="metadata" aria-label="StopProof walkthrough animation"></video>
+      </div>
+      <ol class="chapters" id="chapters"></ol>
+    </div>
+  </section>
 
   <!-- [01] ARCHITECTURE & CONTRACT -->
   <section class="frame">
@@ -769,7 +797,7 @@
   <!-- GUIDE (TOGGLED) -->
   <section class="frame hidden" id="guide">
     <div class="frame-head">
-      <div class="frame-title"><span class="frame-idx">[00]</span><span>How to verify it yourself</span></div>
+      <div class="frame-title"><span class="frame-idx">[?]</span><span>How to verify it yourself</span></div>
       <div class="frame-meta">MANUAL AUDIT PROTOCOL</div>
     </div>
     <div class="frame-body">
@@ -1390,6 +1418,21 @@ $("live-run-all").onclick = (e) => startLive("", e.currentTarget);
 $("live-run-fail").onclick = (e) => startLive("vulnerable_agent", e.currentTarget);
 $("live-run-ok").onclick = (e) => startLive("fixed_agent", e.currentTarget);
 $("live-run-opaque").onclick = (e) => startLive("opaque_agent", e.currentTarget);
+
+/* ---------- walkthrough video chapters ---------- */
+const CHAPTERS = [["The leak", 3.1], ["Locked test", 13.3], ["Race windows", 20.2], ["Verdicts", 28.5], ["Auto-repair", 34.0], ["Evidence", 42.8], ["Live proof", 49.2]];
+(function setupVideo() {
+  const video = $("flow-video"), list = $("chapters");
+  list.innerHTML = CHAPTERS.map(([name], i) => `<li><button data-i="${i}"><b>0${i + 1}</b>${name}</button></li>`).join("");
+  const buttons = [...list.querySelectorAll("button")];
+  buttons.forEach((b) => (b.onclick = () => { video.currentTime = CHAPTERS[+b.dataset.i][1] + 0.1; video.play(); }));
+  video.addEventListener("timeupdate", () => {
+    const now = video.currentTime;
+    const cur = CHAPTERS.reduce((acc, [, t], i) => (now >= t ? i : acc), -1);
+    buttons.forEach((b, i) => b.setAttribute("aria-current", String(i === cur)));
+  });
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) video.pause();
+})();
 
 /* ---------- wiring ---------- */
 $("run").onclick = startRun;

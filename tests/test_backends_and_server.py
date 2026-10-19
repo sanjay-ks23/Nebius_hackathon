@@ -145,6 +145,17 @@ def test_ui_is_served(api):
     assert page.status_code == 200 and "How to verify it yourself" in page.text and "Edit this trace and re-verify" in page.text
 
 
+def test_walkthrough_video_is_served_with_range_support(api):
+    client, _ = api
+    assert 'id="flow-video"' in client.get("/").text
+    full = client.get("/assets/stopproof-flow.mp4")
+    assert full.status_code == 200 and full.headers["content-type"] == "video/mp4" and len(full.content) > 100_000
+    part = client.get("/assets/stopproof-flow.mp4", headers={"Range": "bytes=0-99"})
+    assert part.status_code == 206 and len(part.content) == 100
+    assert client.get("/assets/nope.mp4").status_code == 404
+    assert client.get("/assets/../server.py").status_code == 404
+
+
 def test_health_lists_backends_and_picks_the_first_ready_one(api, monkeypatch):
     client, _ = api
     status = {"nebius": {"ok": False, "label": "n", "code": "not_enabled", "detail": "d"}, "local": {"ok": True, "label": "l", "detail": "ready"}}
